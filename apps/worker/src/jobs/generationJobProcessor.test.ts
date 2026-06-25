@@ -111,6 +111,107 @@ describe("createGenerationJobProcessor", () => {
     ]);
   });
 
+  it("loads the base version and persists an edit job against the existing screen", async () => {
+    const calls: string[] = [];
+    let persistedEdit: { screenId: string; baseVersionId: string | null } | undefined;
+
+    const editJob: GenerationJob = {
+      ...job,
+      id: "job_2",
+      type: "edit_screen",
+      prompt: "Tighten the spacing",
+      targetScreenId: "screen_1",
+    };
+
+    const processor = createGenerationJobProcessor({
+      provider: {
+        generateStructuredDesign: async (input) => {
+          calls.push(`provider:${input.type}:${input.baseDesignSpec?.title ?? "none"}`);
+          return { designSpec };
+        },
+      },
+      screenReader: {
+        findScreen: async (screenId) => {
+          calls.push(`findScreen:${screenId}`);
+          return { id: screenId, projectId: "proj_1", currentVersionId: "ver_1" };
+        },
+        findScreenVersion: async (versionId) => {
+          calls.push(`findVersion:${versionId}`);
+          return { id: versionId, designSpec };
+        },
+      },
+      renderScreenshot: async ({ viewport }) => ({
+        bytes: Buffer.from("fake-png"),
+        mimeType: "image/png",
+        width: viewport.width,
+        height: viewport.height,
+      }),
+      artifactStore: {
+        putObject: async () => {},
+        deleteObject: async () => {},
+      },
+      persister: {
+        persistCompletedGeneration: async (input) => {
+          persistedEdit = input.edit;
+          return {
+            job: { ...editJob, status: "completed", result: { screenId: "screen_1", screenVersionId: "ver_2" }, error: null },
+            screenVersion: {
+              id: "ver_2",
+              screenId: "screen_1",
+              versionNumber: 2,
+              sourcePrompt: editJob.prompt,
+              operation: "edit",
+              designSpec,
+              htmlCode: input.htmlCode,
+              reactCode: null,
+              screenshotArtifactId: "artifact_2",
+              parentVersionId: "ver_1",
+              createdAt: "2026-06-18T12:05:00.000Z",
+            },
+          };
+        },
+      },
+    });
+
+    const result = await processor.process(editJob);
+
+    expect(calls).toEqual([
+      "findScreen:screen_1",
+      "findVersion:ver_1",
+      "provider:edit_screen:Operations Dashboard",
+    ]);
+    expect(persistedEdit).toEqual({ screenId: "screen_1", baseVersionId: "ver_1" });
+    expect(result.screenVersion.operation).toBe("edit");
+  });
+
+  it("fails an edit job when the target screen is missing", async () => {
+    const editJob: GenerationJob = {
+      ...job,
+      type: "edit_screen",
+      prompt: "Edit it",
+      targetScreenId: "screen_missing",
+    };
+
+    const processor = createGenerationJobProcessor({
+      provider: { generateStructuredDesign: async () => ({ designSpec }) },
+      screenReader: {
+        findScreen: async () => null,
+        findScreenVersion: async () => null,
+      },
+      renderScreenshot: async () => {
+        throw new Error("should not render");
+      },
+      artifactStore: { putObject: async () => {}, deleteObject: async () => {} },
+      persister: {
+        persistCompletedGeneration: async () => {
+          throw new Error("should not persist");
+        },
+      },
+    });
+
+    await expect(processor.process(editJob)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
   it("fails before persisting when provider output is not a valid DesignSpec", async () => {
     const processor = createGenerationJobProcessor({
       provider: {

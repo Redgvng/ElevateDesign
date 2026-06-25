@@ -15,12 +15,21 @@ export const GenerationJobStatusSchema = z.enum([
   "cancelled",
 ]);
 
-export const CreateGenerationJobInputSchema = z.object({
-  type: z.literal("generate_screen"),
-  prompt: z.string().trim().min(1, "Prompt is required").max(4000),
-  deviceType: DeviceTypeSchema,
-  mode: GenerationModeSchema.default("fast"),
-});
+export const CreateGenerationJobInputSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("generate_screen"),
+    prompt: z.string().trim().min(1, "Prompt is required").max(4000),
+    deviceType: DeviceTypeSchema,
+    mode: GenerationModeSchema.default("fast"),
+  }),
+  z.object({
+    type: z.literal("edit_screen"),
+    screenId: z.string().trim().min(1, "screenId is required"),
+    prompt: z.string().trim().min(1, "Prompt is required").max(4000),
+    deviceType: DeviceTypeSchema,
+    mode: GenerationModeSchema.default("fast"),
+  }),
+]);
 
 export const GenerationJobSchema = z.object({
   id: z.string(),
@@ -30,6 +39,7 @@ export const GenerationJobSchema = z.object({
   prompt: z.string(),
   deviceType: DeviceTypeSchema,
   mode: GenerationModeSchema,
+  targetScreenId: z.string().nullish(),
   result: z
     .object({
       screenId: z.string(),

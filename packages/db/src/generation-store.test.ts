@@ -23,6 +23,47 @@ describe("createGenerationResultPersister", () => {
     });
   });
 
+  it("appends a new version to the existing screen for an edit job", async () => {
+    const seedScreen: Screen = {
+      id: "screen_seed",
+      projectId: "proj_1",
+      title: "Dashboard",
+      deviceType: "desktop",
+      currentVersionId: "ver_seed",
+      createdAt: "2026-06-18T09:00:00.000Z",
+      updatedAt: "2026-06-18T09:00:00.000Z",
+    };
+    const seedVersion: ScreenVersion = {
+      id: "ver_seed",
+      screenId: "screen_seed",
+      versionNumber: 1,
+      sourcePrompt: "Create a dashboard",
+      operation: "generate",
+      designSpec: completedInput.designSpec,
+      htmlCode: "<html></html>",
+      reactCode: null,
+      screenshotArtifactId: null,
+      parentVersionId: null,
+      createdAt: "2026-06-18T09:00:00.000Z",
+    };
+
+    const state = createRepositoryState({ seed: { screen: seedScreen, version: seedVersion } });
+    const persister = createGenerationResultPersister(state.unitOfWork);
+
+    const result = await persister.persistCompletedGeneration({
+      ...completedInput,
+      prompt: "Tighten the spacing",
+      edit: { screenId: "screen_seed", baseVersionId: "ver_seed" },
+    });
+
+    expect(state.createCounts.screens).toBe(0);
+    expect(result.screen.id).toBe("screen_seed");
+    expect(result.screen.currentVersionId).toBe(result.screenVersion.id);
+    expect(result.screenVersion.versionNumber).toBe(2);
+    expect(result.screenVersion.operation).toBe("edit");
+    expect(result.screenVersion.parentVersionId).toBe("ver_seed");
+  });
+
   it("rejects completion when the job has not been acquired", async () => {
     const state = createRepositoryState({ status: "queued" });
     const persister = createGenerationResultPersister(state.unitOfWork);
@@ -34,7 +75,9 @@ describe("createGenerationResultPersister", () => {
   });
 });
 
-function createRepositoryState(options: { status?: GenerationJob["status"] } = {}) {
+function createRepositoryState(
+  options: { status?: GenerationJob["status"]; seed?: { screen: Screen; version: ScreenVersion } } = {},
+) {
   let job: GenerationJob = {
     id: "job_1",
     projectId: "proj_1",
@@ -52,6 +95,11 @@ function createRepositoryState(options: { status?: GenerationJob["status"] } = {
   const versions = new Map<string, ScreenVersion>();
   const artifacts = new Map<string, Artifact>();
   const createCounts = { screens: 0, versions: 0, artifacts: 0 };
+
+  if (options.seed) {
+    screens.set(options.seed.screen.id, options.seed.screen);
+    versions.set(options.seed.version.id, options.seed.version);
+  }
 
   const repositories: GenerationRepositories = {
     generationJobs: {

@@ -3,6 +3,20 @@ import type { AiProvider, GenerateDesignInput, GenerateDesignOutput } from "./Ai
 
 export class MockAiProvider implements AiProvider {
   async generateStructuredDesign(input: GenerateDesignInput): Promise<GenerateDesignOutput> {
+    if (input.type === "edit_screen" && input.baseDesignSpec) {
+      const editedTitle = `${input.baseDesignSpec.title} (edited)`;
+      return {
+        designSpec: {
+          ...input.baseDesignSpec,
+          title: editedTitle,
+          root: {
+            ...input.baseDesignSpec.root,
+            name: editedTitle,
+          },
+        },
+      };
+    }
+
     const designSpec: DesignSpec = {
       schemaVersion: "1.0",
       title: "Operations Dashboard",

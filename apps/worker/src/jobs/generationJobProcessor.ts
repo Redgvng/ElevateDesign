@@ -37,16 +37,26 @@ export type CompletedGenerationResult = {
     width: number;
     height: number;
   } | null;
+  edit?: {
+    screenId: string;
+    baseVersionId: string | null;
+  };
 };
 
 type RenderedScreenshotArtifact = NonNullable<CompletedGenerationResult["screenshot"]> & {
   bytes: Buffer;
 };
 
+export type ScreenContextReader = {
+  findScreen(screenId: string): Promise<{ id: string; projectId: string; currentVersionId: string } | null>;
+  findScreenVersion(screenVersionId: string): Promise<{ id: string; designSpec: DesignSpec } | null>;
+};
+
 export type GenerationJobProcessorOptions = {
   provider: AiProvider;
   persister: GenerationResultPersister;
   artifactStore: Pick<ArtifactObjectStore, "putObject" | "deleteObject">;
+  screenReader?: ScreenContextReader;
   renderScreenshot?: typeof renderHtmlScreenshot;
   providerName?: string;
   model?: string;
@@ -76,25 +86,31 @@ export function createGenerationJobProcessor({
   provider,
   persister,
   artifactStore,
+  screenReader,
   renderScreenshot = renderHtmlScreenshot,
   providerName = "mock",
   model = "mock-v1",
 }: GenerationJobProcessorOptions): GenerationJobProcessor {
   return {
     async process(job) {
-      if (job.type !== "generate_screen") {
+      if (job.type !== "generate_screen" && job.type !== "edit_screen") {
         throw new GenerationProcessingError(
           "VALIDATION_ERROR",
           `Unsupported generation job type: ${job.type}`,
         );
       }
 
+      const editContext =
+        job.type === "edit_screen" ? await resolveEditContext(job, screenReader) : null;
+
       const output = await provider.generateStructuredDesign({
-        type: "generate_screen",
+        type: job.type,
         projectId: job.projectId,
         prompt: job.prompt,
         deviceType: job.deviceType,
         mode: job.mode,
+        screenId: editContext?.screenId,
+        baseDesignSpec: editContext?.baseDesignSpec,
       });
       const parsed = DesignSpecSchema.safeParse(output.designSpec);
 
@@ -143,6 +159,9 @@ export function createGenerationJobProcessor({
             width: screenshot.width,
             height: screenshot.height,
           },
+          edit: editContext
+            ? { screenId: editContext.screenId, baseVersionId: editContext.baseVersionId }
+            : undefined,
         });
       } catch (error) {
         try {
@@ -168,6 +187,58 @@ export function createGenerationJobProcessor({
         );
       }
     },
+  };
+}
+
+type EditContext = {
+  screenId: string;
+  baseVersionId: string;
+  baseDesignSpec: DesignSpec;
+};
+
+async function resolveEditContext(
+  job: GenerationJob,
+  screenReader: ScreenContextReader | undefined,
+): Promise<EditContext> {
+  if (!screenReader) {
+    throw new GenerationProcessingError(
+      "CONFIGURATION_ERROR",
+      "edit_screen jobs require a screen reader",
+    );
+  }
+  if (!job.targetScreenId) {
+    throw new GenerationProcessingError(
+      "VALIDATION_ERROR",
+      "edit_screen job is missing a target screenId",
+    );
+  }
+
+  const screen = await screenReader.findScreen(job.targetScreenId);
+  if (!screen) {
+    throw new GenerationProcessingError(
+      "NOT_FOUND",
+      `Screen ${job.targetScreenId} not found for edit job ${job.id}`,
+    );
+  }
+  if (screen.projectId !== job.projectId) {
+    throw new GenerationProcessingError(
+      "VALIDATION_ERROR",
+      `Screen ${job.targetScreenId} does not belong to project ${job.projectId}`,
+    );
+  }
+
+  const baseVersion = await screenReader.findScreenVersion(screen.currentVersionId);
+  if (!baseVersion) {
+    throw new GenerationProcessingError(
+      "NOT_FOUND",
+      `Base version ${screen.currentVersionId} not found for screen ${screen.id}`,
+    );
+  }
+
+  return {
+    screenId: screen.id,
+    baseVersionId: baseVersion.id,
+    baseDesignSpec: baseVersion.designSpec,
   };
 }
 

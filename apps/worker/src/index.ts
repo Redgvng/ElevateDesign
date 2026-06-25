@@ -23,6 +23,11 @@ export function createGenerationWorkerRuntime(config: WorkerConfig) {
     provider: new MockAiProvider(),
     persister: createGenerationResultPersister(repositories.unitOfWork),
     artifactStore: createS3ObjectStore(config.objectStorage),
+    screenReader: {
+      findScreen: (screenId) => repositories.screens.findById(screenId),
+      findScreenVersion: (screenVersionId) =>
+        repositories.screenVersions.findById(screenVersionId),
+    },
     providerName: config.ai.provider,
     model: config.ai.openAiModel ?? config.ai.anthropicModel ?? "mock-v1",
   });

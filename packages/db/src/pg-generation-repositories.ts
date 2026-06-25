@@ -429,6 +429,7 @@ function serializeGenerationJob(row: typeof generationJobs.$inferSelect): Genera
     prompt: row.prompt,
     deviceType: row.deviceType,
     mode: row.mode,
+    targetScreenId: extractTargetScreenId(row.request),
     result: row.result,
     error: row.error
       ? {
@@ -440,6 +441,13 @@ function serializeGenerationJob(row: typeof generationJobs.$inferSelect): Genera
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+function extractTargetScreenId(request: Record<string, unknown> | null): string | null {
+  if (request && typeof request === "object" && typeof request.screenId === "string") {
+    return request.screenId;
+  }
+  return null;
 }
 
 function serializeScreen(row: typeof screens.$inferSelect): Screen {

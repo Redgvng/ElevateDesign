@@ -87,6 +87,7 @@ export function createInMemoryGenerationJobRepository(): GenerationJobRepository
         prompt: input.prompt,
         deviceType: input.deviceType,
         mode: input.mode,
+        targetScreenId: input.type === "edit_screen" ? input.screenId : null,
         result: null,
         error: null,
         createdAt: now,
