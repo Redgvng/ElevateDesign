@@ -163,17 +163,19 @@ Deux prompts proches peuvent produire des structures `DesignSpec` différentes, 
 
 ## Phase 5: design system
 
+Statut (2026-06-26): **complète** sur `codex/generation-persistence-queue`. Injection validée end-to-end (un job généré dans un projet avec design system porte le designContext résolu).
+
 Objectif:
 
 Stabiliser la direction visuelle.
 
 Livrables:
 
-- DESIGN.md;
-- parser tokens;
-- panneau d'édition;
-- injection dans les prompts;
-- régénération avec design system.
+- DESIGN.md ✅ (champ `designMarkdown` éditable dans le panneau);
+- parser tokens ✅ (contrats Zod `DesignTokens` + validation);
+- panneau d'édition ✅ (`DesignSystemPanel`: list/create/edit/save);
+- injection dans les prompts ✅ (résolue à l'enqueue, portée par `GenerationJob.designContext`, passée au provider);
+- régénération avec design system ✅ (toute (re)génération du projet embarque le contexte).
 
 Critère de sortie:
 
