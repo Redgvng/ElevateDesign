@@ -17,6 +17,7 @@ describe("ChatPanel cancellation", () => {
         isSubmitting
         isCancelling={false}
         error={null}
+        activeScreenId={null}
         onSubmitPrompt={async () => undefined}
         onCancelJob={onCancelJob}
       />,
@@ -33,6 +34,7 @@ describe("ChatPanel cancellation", () => {
         isSubmitting
         isCancelling={false}
         error={null}
+        activeScreenId={null}
         onSubmitPrompt={async () => undefined}
         onCancelJob={async () => undefined}
       />,
@@ -48,6 +50,7 @@ describe("ChatPanel cancellation", () => {
         isSubmitting
         isCancelling
         error={null}
+        activeScreenId={null}
         onSubmitPrompt={async () => undefined}
         onCancelJob={async () => undefined}
       />,
@@ -55,6 +58,48 @@ describe("ChatPanel cancellation", () => {
 
     const button = screen.getByRole("button", { name: "Cancelling..." }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
+  });
+});
+
+describe("ChatPanel edit mode", () => {
+  it("hides the edit toggle when no screen is active", () => {
+    render(
+      <ChatPanel
+        job={null}
+        isSubmitting={false}
+        isCancelling={false}
+        error={null}
+        activeScreenId={null}
+        onSubmitPrompt={async () => undefined}
+        onCancelJob={async () => undefined}
+      />,
+    );
+
+    expect(screen.queryByRole("radio", { name: "Edit current" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Generate screen" })).toBeTruthy();
+  });
+
+  it("submits an edit prompt targeting the active screen", async () => {
+    const user = userEvent.setup();
+    const onSubmitPrompt = vi.fn(async () => undefined);
+
+    render(
+      <ChatPanel
+        job={null}
+        isSubmitting={false}
+        isCancelling={false}
+        error={null}
+        activeScreenId="screen_42"
+        onSubmitPrompt={onSubmitPrompt}
+        onCancelJob={async () => undefined}
+      />,
+    );
+
+    await user.click(screen.getByRole("radio", { name: "Edit current" }));
+    await user.type(screen.getByLabelText("Edit prompt"), "Tighten the spacing");
+    await user.click(screen.getByRole("button", { name: "Edit screen" }));
+
+    expect(onSubmitPrompt).toHaveBeenCalledWith("Tighten the spacing", "screen_42");
   });
 });
 

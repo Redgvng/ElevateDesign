@@ -6,7 +6,8 @@ type ChatPanelProps = {
   isSubmitting: boolean;
   error: string | null;
   isCancelling: boolean;
-  onSubmitPrompt: (prompt: string) => Promise<void>;
+  activeScreenId: string | null;
+  onSubmitPrompt: (prompt: string, editScreenId?: string | null) => Promise<void>;
   onCancelJob: () => Promise<void>;
 };
 
@@ -15,11 +16,15 @@ export function ChatPanel({
   isSubmitting,
   error,
   isCancelling,
+  activeScreenId,
   onSubmitPrompt,
   onCancelJob,
 }: ChatPanelProps) {
   const promptId = useId();
   const [prompt, setPrompt] = useState("");
+  const [mode, setMode] = useState<"generate" | "edit">("generate");
+
+  const isEditing = mode === "edit" && Boolean(activeScreenId);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -29,7 +34,8 @@ export function ChatPanel({
       return;
     }
 
-    await onSubmitPrompt(trimmedPrompt);
+    await onSubmitPrompt(trimmedPrompt, isEditing ? activeScreenId : null);
+    setPrompt("");
   }
 
   const canSubmit = Boolean(prompt.trim()) && !isSubmitting;
@@ -69,17 +75,50 @@ export function ChatPanel({
       </div>
 
       <form className="chat-composer" onSubmit={handleSubmit}>
-        <label htmlFor={promptId}>Prompt</label>
+        {activeScreenId ? (
+          <div className="chat-mode-switch" role="radiogroup" aria-label="Prompt mode">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={mode === "generate"}
+              aria-pressed={mode === "generate"}
+              onClick={() => setMode("generate")}
+            >
+              New screen
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={mode === "edit"}
+              aria-pressed={mode === "edit"}
+              onClick={() => setMode("edit")}
+            >
+              Edit current
+            </button>
+          </div>
+        ) : null}
+
+        <label htmlFor={promptId}>{isEditing ? "Edit prompt" : "Prompt"}</label>
         <textarea
           id={promptId}
           rows={5}
           value={prompt}
           onChange={(event) => setPrompt(event.currentTarget.value)}
-          placeholder="Create a dense SaaS monitoring dashboard"
+          placeholder={
+            isEditing
+              ? "Tighten the spacing and add a sidebar"
+              : "Create a dense SaaS monitoring dashboard"
+          }
           disabled={isSubmitting}
         />
         <button type="submit" disabled={!canSubmit}>
-          {isSubmitting ? "Generating..." : "Generate screen"}
+          {isSubmitting
+            ? isEditing
+              ? "Editing..."
+              : "Generating..."
+            : isEditing
+              ? "Edit screen"
+              : "Generate screen"}
         </button>
       </form>
     </section>

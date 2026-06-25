@@ -75,11 +75,14 @@ export function Workspace({ project, onBack }: WorkspaceProps) {
     setScreenVersion(version);
   }
 
-  async function submitPrompt(prompt: string) {
-    const optimisticJob = createOptimisticJob(project.id, prompt);
+  async function submitPrompt(prompt: string, editScreenId?: string | null) {
+    const isEditing = Boolean(editScreenId);
+    const optimisticJob = createOptimisticJob(project.id, prompt, editScreenId ?? null);
 
     setJob(optimisticJob);
-    setScreenVersion(null);
+    if (!isEditing) {
+      setScreenVersion(null);
+    }
     setIsSubmitting(true);
     setIsCancelling(false);
     setError(null);
@@ -90,19 +93,31 @@ export function Workspace({ project, onBack }: WorkspaceProps) {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            type: "generate_screen",
-            prompt,
-            deviceType: "desktop",
-            mode: "fast",
-          }),
+          body: JSON.stringify(
+            isEditing
+              ? {
+                  type: "edit_screen",
+                  screenId: editScreenId,
+                  prompt,
+                  deviceType: "desktop",
+                  mode: "fast",
+                }
+              : {
+                  type: "generate_screen",
+                  prompt,
+                  deviceType: "desktop",
+                  mode: "fast",
+                },
+          ),
         },
       );
 
       const completedScreenVersion = await settleGeneration(created);
       if (completedScreenVersion) {
         rememberScreenVersion(completedScreenVersion);
-        addScreenVersionToCanvas(completedScreenVersion);
+        if (!isEditing) {
+          addScreenVersionToCanvas(completedScreenVersion);
+        }
       }
     } catch (caught) {
       setError(getErrorMessage(caught, "Could not generate screen."));
@@ -279,6 +294,7 @@ export function Workspace({ project, onBack }: WorkspaceProps) {
           isSubmitting={isSubmitting}
           isCancelling={isCancelling}
           error={error}
+          activeScreenId={screenVersion?.screenId ?? null}
           onSubmitPrompt={submitPrompt}
           onCancelJob={cancelGeneration}
         />
@@ -343,17 +359,22 @@ type ApiErrorResponse = {
   };
 };
 
-function createOptimisticJob(projectId: string, prompt: string): GenerationJob {
+function createOptimisticJob(
+  projectId: string,
+  prompt: string,
+  targetScreenId: string | null,
+): GenerationJob {
   const now = new Date().toISOString();
 
   return {
     id: "pending",
     projectId,
-    type: "generate_screen",
+    type: targetScreenId ? "edit_screen" : "generate_screen",
     status: "queued",
     prompt,
     deviceType: "desktop",
     mode: "fast",
+    targetScreenId,
     result: null,
     error: null,
     createdAt: now,

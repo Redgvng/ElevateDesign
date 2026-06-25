@@ -485,6 +485,33 @@ button:hover:not(:disabled) {
   background: #eef2f7;
 }
 
+.chat-mode-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #ffffff;
+  width: fit-content;
+}
+
+.chat-mode-switch button {
+  border: 0;
+  border-radius: 4px;
+  padding: 4px 10px;
+  color: var(--muted);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.chat-mode-switch button[aria-checked="true"] {
+  color: var(--text);
+  background: #eef2f7;
+}
+
 .preview-empty {
   display: grid;
   place-items: center;
