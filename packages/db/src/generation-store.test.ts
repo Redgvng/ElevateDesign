@@ -118,6 +118,13 @@ function createRepositoryState(options: { status?: GenerationJob["status"] } = {
       async listByProject(projectId) {
         return [...screens.values()].filter((screen) => screen.projectId === projectId);
       },
+      async setCurrentVersion(screenId, screenVersionId) {
+        const existing = screens.get(screenId);
+        if (!existing) throw new Error(`Screen ${screenId} not found`);
+        const updated: Screen = { ...existing, currentVersionId: screenVersionId };
+        screens.set(screenId, updated);
+        return updated;
+      },
     },
     screenVersions: {
       async create(input) {

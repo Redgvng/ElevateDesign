@@ -40,6 +40,52 @@ describe("screen routes", () => {
     await expect(response.json()).resolves.toEqual({ screenVersion });
   });
 
+  it("reverts the current version to an existing version of the same screen", async () => {
+    const olderVersion: ScreenVersion = { ...screenVersion, id: "ver_0", versionNumber: 1 };
+    const app = createScreensRouter(projectStore, {
+      ...repositories,
+      screenVersions: { ...repositories.screenVersions, findById: async () => olderVersion },
+    });
+
+    const response = await app.request(`/api/screens/${screen.id}/current-version`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ screenVersionId: "ver_0" }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.screen.currentVersionId).toBe("ver_0");
+  });
+
+  it("rejects reverting to a version that belongs to another screen", async () => {
+    const foreignVersion: ScreenVersion = { ...screenVersion, id: "ver_x", screenId: "screen_other" };
+    const app = createScreensRouter(projectStore, {
+      ...repositories,
+      screenVersions: { ...repositories.screenVersions, findById: async () => foreignVersion },
+    });
+
+    const response = await app.request(`/api/screens/${screen.id}/current-version`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ screenVersionId: "ver_x" }),
+    });
+
+    expect(response.status).toBe(404);
+  });
+
+  it("validates that screenVersionId is provided", async () => {
+    const app = createScreensRouter(projectStore, repositories);
+
+    const response = await app.request(`/api/screens/${screen.id}/current-version`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(400);
+  });
+
   it("returns 404 when project is missing", async () => {
     const app = createScreensRouter(
       { ...projectStore, getProject: async () => null },
@@ -138,6 +184,10 @@ const repositories: GenerationRepositories = {
     create: async () => screen,
     findById: async () => screen,
     listByProject: async () => [screen],
+    setCurrentVersion: async (_screenId, screenVersionId) => ({
+      ...screen,
+      currentVersionId: screenVersionId,
+    }),
   },
   screenVersions: {
     create: async () => screenVersion,

@@ -321,6 +321,17 @@ function createPgScreenRepository(db: DatabaseLike): ScreenRepository {
         .map(serializeScreen)
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
     },
+
+    async setCurrentVersion(screenId: string, screenVersionId: string) {
+      const rows = await db
+        .update(screens)
+        .set({ currentVersionId: screenVersionId, updatedAt: new Date() })
+        .where(eq(screens.id, screenId))
+        .returning();
+
+      if (!rows[0]) throw new Error(`Screen ${screenId} not found`);
+      return serializeScreen(rows[0]);
+    },
   };
 }
 

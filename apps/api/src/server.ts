@@ -87,6 +87,9 @@ function createEmptyInMemoryGenerationRepositories(): GenerationRepositories {
       },
       findById: async () => null,
       listByProject: async () => [],
+      setCurrentVersion: async () => {
+        throw new Error("Screen updates are not supported by the in-memory generation store");
+      },
     },
     screenVersions: {
       create: async () => {

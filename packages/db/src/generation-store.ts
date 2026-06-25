@@ -51,6 +51,7 @@ export type ScreenRepository = {
   create(input: ScreenCreateInput): Promise<Screen>;
   findById(screenId: string): Promise<Screen | null>;
   listByProject(projectId: string): Promise<Screen[]>;
+  setCurrentVersion(screenId: string, screenVersionId: string): Promise<Screen>;
 };
 
 export type ScreenVersionCreateInput = {

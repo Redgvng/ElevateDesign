@@ -63,6 +63,52 @@ export function createScreensRouter(
     return c.json({ screen, versions });
   });
 
+  app.put("/api/screens/:screenId/current-version", async (c) => {
+    const screen = await repositories.screens.findById(c.req.param("screenId"));
+    if (!screen) {
+      return c.json({ error: { code: "NOT_FOUND", message: "Screen not found" } }, 404);
+    }
+
+    const project = await projectStore.getProject(screen.projectId);
+    if (!project) {
+      return c.json({ error: { code: "NOT_FOUND", message: "Screen not found" } }, 404);
+    }
+
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      body = null;
+    }
+
+    const screenVersionId =
+      body && typeof body === "object" && "screenVersionId" in body
+        ? (body as { screenVersionId: unknown }).screenVersionId
+        : undefined;
+
+    if (typeof screenVersionId !== "string" || screenVersionId.length === 0) {
+      return c.json(
+        { error: { code: "VALIDATION_ERROR", message: "screenVersionId is required" } },
+        400,
+      );
+    }
+
+    const targetVersion = await repositories.screenVersions.findById(screenVersionId);
+    if (!targetVersion || targetVersion.screenId !== screen.id) {
+      return c.json(
+        { error: { code: "NOT_FOUND", message: "Screen version not found for this screen" } },
+        404,
+      );
+    }
+
+    const updatedScreen = await repositories.screens.setCurrentVersion(screen.id, screenVersionId);
+    const versions = await repositories.screenVersions.listByScreen(screen.id);
+    return c.json({
+      screen: updatedScreen,
+      currentVersion: findCurrentVersionSummary(updatedScreen, versions),
+    });
+  });
+
   app.get("/api/screen-versions/:screenVersionId", async (c) => {
     const screenVersion = await repositories.screenVersions.findById(
       c.req.param("screenVersionId"),
