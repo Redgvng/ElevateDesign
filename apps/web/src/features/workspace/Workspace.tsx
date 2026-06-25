@@ -17,6 +17,7 @@ export function Workspace({ project, onBack }: WorkspaceProps) {
   const [canvasDocument, setCanvasDocument] = useState<CanvasDocument | null>(null);
   const [canvasStatus, setCanvasStatus] = useState("Loading");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -31,6 +32,11 @@ export function Workspace({ project, onBack }: WorkspaceProps) {
         if (isMounted) {
           setCanvasDocument(data.canvas);
           setCanvasStatus(formatCanvasStatus(data.canvas));
+          void hydrateInitialPreview(data.canvas).catch((caught) => {
+            if (isMounted) {
+              setError(getErrorMessage(caught, "Could not rehydrate preview."));
+            }
+          });
         }
       } catch (caught) {
         if (isMounted) {
@@ -46,12 +52,35 @@ export function Workspace({ project, onBack }: WorkspaceProps) {
     };
   }, [project.id]);
 
+  async function hydrateInitialPreview(canvas: CanvasDocument) {
+    const firstScreenNode = canvas.nodes.find((node) => node.type === "screen" && node.refId);
+    if (!firstScreenNode?.refId) return;
+
+    const screensResponse = await requestJson<ProjectScreensResponse>(
+      `/api/projects/${project.id}/screens`,
+    );
+    const matchingScreen = screensResponse.screens.find(
+      (entry) => entry.screen.id === firstScreenNode.refId,
+    );
+    const versionId =
+      firstScreenNode.pinnedVersionId ??
+      matchingScreen?.currentVersion?.id ??
+      matchingScreen?.screen.currentVersionId;
+
+    if (!versionId) return;
+
+    const version = await fetchScreenVersion(versionId);
+    rememberScreenVersion(version);
+    setScreenVersion(version);
+  }
+
   async function submitPrompt(prompt: string) {
     const optimisticJob = createOptimisticJob(project.id, prompt);
 
     setJob(optimisticJob);
     setScreenVersion(null);
     setIsSubmitting(true);
+    setIsCancelling(false);
     setError(null);
 
     try {
@@ -90,6 +119,27 @@ export function Workspace({ project, onBack }: WorkspaceProps) {
     }
   }
 
+  async function cancelGeneration() {
+    if (!job || job.id === "pending") return;
+    if (job.status !== "queued" && job.status !== "running") return;
+
+    setIsCancelling(true);
+    setError(null);
+
+    try {
+      const response = await requestJson<GenerationJobResponse>(
+        `/api/generation-jobs/${job.id}/cancel`,
+        { method: "POST" },
+      );
+      setJob(response.job);
+      setScreenVersion(null);
+    } catch (caught) {
+      setError(getErrorMessage(caught, "Could not cancel generation."));
+    } finally {
+      setIsCancelling(false);
+    }
+  }
+
   async function settleGeneration(initialResponse: GenerationJobResponse) {
     setJob(initialResponse.job);
     setScreenVersion(initialResponse.screenVersion ?? null);
@@ -113,7 +163,14 @@ export function Workspace({ project, onBack }: WorkspaceProps) {
       }
     }
 
-    return currentJob.status === "completed" ? currentScreenVersion : null;
+    if (currentJob.status !== "completed") return null;
+    if (currentScreenVersion) return currentScreenVersion;
+    if (!currentJob.result?.screenVersionId) return null;
+
+    const hydratedVersion = await fetchScreenVersion(currentJob.result.screenVersionId);
+    rememberScreenVersion(hydratedVersion);
+    setScreenVersion(hydratedVersion);
+    return hydratedVersion;
   }
 
   function rememberScreenVersion(version: ScreenVersion) {
@@ -165,7 +222,22 @@ export function Workspace({ project, onBack }: WorkspaceProps) {
 
     if (localVersion) {
       setScreenVersion(localVersion);
+      return;
     }
+
+    const versionIdPromise = node.pinnedVersionId
+      ? Promise.resolve(node.pinnedVersionId)
+      : fetchScreen(node.refId).then((response) => response.screen.currentVersionId);
+
+    void versionIdPromise
+      .then(fetchScreenVersion)
+        .then((version) => {
+          rememberScreenVersion(version);
+          setScreenVersion(version);
+        })
+        .catch((caught) => {
+          setError(getErrorMessage(caught, "Could not load screen version."));
+        });
   }
 
   async function persistCanvas(nextCanvas: CanvasDocument) {
@@ -174,6 +246,7 @@ export function Workspace({ project, onBack }: WorkspaceProps) {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          revision: nextCanvas.revision,
           nodes: nextCanvas.nodes,
           edges: nextCanvas.edges,
           viewport: nextCanvas.viewport,
@@ -203,8 +276,10 @@ export function Workspace({ project, onBack }: WorkspaceProps) {
         <ChatPanel
           job={job}
           isSubmitting={isSubmitting}
+          isCancelling={isCancelling}
           error={error}
           onSubmitPrompt={submitPrompt}
+          onCancelJob={cancelGeneration}
         />
 
         <CanvasWorkspace
@@ -223,6 +298,28 @@ export function Workspace({ project, onBack }: WorkspaceProps) {
 type GenerationJobResponse = {
   job: GenerationJob;
   screenVersion?: ScreenVersion;
+};
+
+type ScreenVersionResponse = {
+  screenVersion: ScreenVersion;
+};
+
+type ScreenResponse = {
+  screen: {
+    currentVersionId: string;
+  };
+};
+
+type ProjectScreensResponse = {
+  screens: Array<{
+    screen: {
+      id: string;
+      currentVersionId: string;
+    };
+    currentVersion: {
+      id: string;
+    } | null;
+  }>;
 };
 
 type CanvasResponse = {
@@ -264,6 +361,17 @@ async function requestJson<TResponse>(url: string, init?: RequestInit): Promise<
   return payload;
 }
 
+async function fetchScreenVersion(screenVersionId: string): Promise<ScreenVersion> {
+  const response = await requestJson<ScreenVersionResponse>(
+    `/api/screen-versions/${screenVersionId}`,
+  );
+  return response.screenVersion;
+}
+
+async function fetchScreen(screenId: string): Promise<ScreenResponse> {
+  return requestJson<ScreenResponse>(`/api/screens/${screenId}`);
+}
+
 function getErrorMessage(caught: unknown, fallback: string): string {
   return caught instanceof Error ? caught.message : fallback;
 }
@@ -284,6 +392,8 @@ function formatWorkspaceStatus(job: GenerationJob): string {
       return "Generation complete";
     case "failed":
       return "Generation failed";
+    case "cancelled":
+      return "Generation cancelled";
   }
 }
 

@@ -24,6 +24,7 @@ describe("durable database schema", () => {
     expect(screens.currentVersionId.name).toBe("current_version_id");
     expect(screenVersions.designSpec.name).toBe("design_spec");
     expect(generationJobs.status.name).toBe("status");
+    expect(generationJobs.leaseExpiresAt.name).toBe("lease_expires_at");
     expect(artifacts.storageKey.name).toBe("storage_key");
     expect(projectCreateRequests.requestHash.name).toBe("request_hash");
   });

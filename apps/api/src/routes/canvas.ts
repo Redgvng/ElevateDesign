@@ -1,7 +1,10 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { UpdateCanvasDocumentInputSchema } from "@odc/shared";
-import type { ProjectStore } from "../lib/project-store";
+import {
+  CanvasRevisionConflictError,
+  type ProjectStore,
+} from "../lib/project-store";
 
 export function createCanvasRouter(store: ProjectStore): Hono {
   const app = new Hono();
@@ -32,12 +35,29 @@ export function createCanvasRouter(store: ProjectStore): Hono {
       );
     }
 
-    const canvas = await store.updateCanvas(c.req.param("projectId"), parsed.data);
-    if (!canvas) {
-      return c.json({ error: { code: "NOT_FOUND", message: "Project not found" } }, 404);
-    }
+    try {
+      const canvas = await store.updateCanvas(c.req.param("projectId"), parsed.data);
+      if (!canvas) {
+        return c.json({ error: { code: "NOT_FOUND", message: "Project not found" } }, 404);
+      }
 
-    return c.json({ canvas });
+      return c.json({ canvas });
+    } catch (error) {
+      if (error instanceof CanvasRevisionConflictError) {
+        return c.json(
+          {
+            error: {
+              code: "CANVAS_CONFLICT",
+              message: "Canvas changed since it was loaded",
+            },
+            canvas: error.currentCanvas,
+          },
+          409,
+        );
+      }
+
+      throw error;
+    }
   });
 
   return app;

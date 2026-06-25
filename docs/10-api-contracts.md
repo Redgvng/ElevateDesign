@@ -174,12 +174,34 @@ Content-Type: application/json
 
 ```json
 {
+  "revision": 12,
   "nodes": [],
   "edges": [],
   "viewport": {
     "x": 0,
     "y": 0,
     "zoom": 1
+  }
+}
+```
+
+Réponse `409` si la révision reçue n'est plus la révision courante:
+
+```json
+{
+  "error": {
+    "code": "CANVAS_CONFLICT",
+    "message": "Canvas changed since it was loaded"
+  },
+  "canvas": {
+    "revision": 13,
+    "nodes": [],
+    "edges": [],
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
   }
 }
 ```
@@ -250,4 +272,3 @@ Content-Type: application/json
 - `EXPORT_ERROR`
 - `RATE_LIMITED`
 - `UNAUTHORIZED`
-

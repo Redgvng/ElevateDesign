@@ -1,5 +1,3 @@
-name: open-design-canvas
-
 services:
   postgres:
     image: postgres:17-alpine

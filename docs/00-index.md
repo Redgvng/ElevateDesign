@@ -46,6 +46,7 @@ Le produit vise une première version utilisable avant toute ambition de platefo
   - [plans/08-knowledge-mcp.md](plans/08-knowledge-mcp.md): MCP interne docs, schemas et playbooks.
   - [plans/09-subagent-development-organization.md](plans/09-subagent-development-organization.md): organisation et roadmap des sous-agents.
   - [plans/10-durable-product-foundation.md](plans/10-durable-product-foundation.md): fondation durable Postgres, queue, workers, artefacts, réhydratation et sécurité.
+  - [plans/11-ui-module-library.md](plans/11-ui-module-library.md): catalogue de modules UI DesignSpec-first et compatibilité shadcn pour diversifier les générations.
 
 ### Références et décisions
 

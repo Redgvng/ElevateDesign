@@ -1,21 +1,29 @@
-import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import type { ArtifactObjectStore, GenerationRepositories } from "@odc/db";
 import { loadConfig, type AppConfig } from "./config";
 import {
-  createInMemoryGenerationStore,
-  type ScreenshotRenderer,
+  createInMemoryGenerationJobRepository,
+  createQueuedGenerationStore,
+  type GenerationQueue,
 } from "./lib/generation-store";
+import { createConfiguredArtifactObjectStore } from "./lib/artifact-object-store";
+import { createConfiguredGenerationQueue } from "./lib/generation-queue";
+import { createPgGenerationRepositories } from "./lib/pg-generation-repositories";
 import { createPgProjectStore } from "./lib/pg-project-store";
 import { createInMemoryProjectStore } from "./lib/project-store";
 import { checkReadiness } from "./lib/readiness";
+import { createArtifactsRouter } from "./routes/artifacts";
 import { createCanvasRouter } from "./routes/canvas";
 import { createGenerationJobsRouter } from "./routes/generation-jobs";
 import { createProjectsRouter } from "./routes/projects";
+import { createScreensRouter } from "./routes/screens";
 
 export type CreateAppOptions = {
   config?: AppConfig;
-  renderScreenshot?: ScreenshotRenderer;
+  generationQueue?: GenerationQueue;
+  generationRepositories?: GenerationRepositories;
+  artifactObjectStore?: ArtifactObjectStore | null;
 };
 
 export function createApp(options: CreateAppOptions = {}) {
@@ -27,8 +35,19 @@ export function createApp(options: CreateAppOptions = {}) {
         workspaceSlug: config.defaultWorkspace.slug,
       })
     : createInMemoryProjectStore();
-  const generationStore = createInMemoryGenerationStore(store, {
-    renderScreenshot: options.renderScreenshot,
+  const generationRepositories =
+    options.generationRepositories ??
+    (config.databaseUrl
+      ? createPgGenerationRepositories(config.databaseUrl)
+      : createEmptyInMemoryGenerationRepositories());
+  const artifactObjectStore =
+    options.artifactObjectStore === undefined
+      ? createConfiguredArtifactObjectStore(config)
+      : options.artifactObjectStore;
+  const generationStore = createQueuedGenerationStore({
+    projectStore: store,
+    generationJobs: generationRepositories.generationJobs,
+    queue: options.generationQueue ?? createConfiguredGenerationQueue(config.redisUrl),
   });
   const app = new Hono();
 
@@ -50,12 +69,38 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route("/api/projects", createProjectsRouter(store));
   app.route("/api/projects", createCanvasRouter(store));
   app.route("/", createGenerationJobsRouter(generationStore));
+  app.route("/", createScreensRouter(store, generationRepositories));
+  app.route(
+    "/",
+    createArtifactsRouter(store, generationRepositories.artifacts, artifactObjectStore),
+  );
 
   return app;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const config = loadConfig();
-  serve({ fetch: createApp({ config }).fetch, port: config.port });
-  console.log(`Open Design Canvas API listening on http://localhost:${config.port}`);
+function createEmptyInMemoryGenerationRepositories(): GenerationRepositories {
+  return {
+    generationJobs: createInMemoryGenerationJobRepository(),
+    screens: {
+      create: async () => {
+        throw new Error("Screen creation is not supported by the in-memory generation store");
+      },
+      findById: async () => null,
+      listByProject: async () => [],
+    },
+    screenVersions: {
+      create: async () => {
+        throw new Error("Screen version creation is not supported by the in-memory generation store");
+      },
+      findById: async () => null,
+      listByScreen: async () => [],
+    },
+    artifacts: {
+      create: async () => {
+        throw new Error("Artifact creation is not supported by the in-memory generation store");
+      },
+      findById: async () => null,
+      listByScreenVersion: async () => [],
+    },
+  };
 }

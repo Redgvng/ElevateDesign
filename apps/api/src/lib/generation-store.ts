@@ -1,43 +1,89 @@
 import { randomUUID } from "node:crypto";
-import { DesignSpecSchema, type CreateGenerationJobInput, type GenerationJob, type ScreenVersion } from "@odc/shared";
-import { MockAiProvider, designSpecToHtml, renderHtmlScreenshot } from "@odc/worker";
+import type { GenerationJobFailure, GenerationJobRepository } from "@odc/db";
+import type { CreateGenerationJobInput, GenerationJob } from "@odc/shared";
 import type { ProjectStore } from "./project-store";
 
-type StoredGeneration = {
+export type StoredGeneration = {
   job: GenerationJob;
-  screenVersion?: ScreenVersion;
 };
 
 export type GenerationStore = {
   createJob(projectId: string, input: CreateGenerationJobInput): Promise<StoredGeneration>;
   getJob(jobId: string): Promise<StoredGeneration | null>;
+  cancelJob(jobId: string): Promise<StoredGeneration | null>;
 };
 
-export type ScreenshotRenderer = typeof renderHtmlScreenshot;
-
-export type InMemoryGenerationStoreOptions = {
-  renderScreenshot?: ScreenshotRenderer;
+export type GenerationQueue = {
+  enqueueGenerationJob(jobId: string): Promise<void>;
+  removeGenerationJob(jobId: string): Promise<boolean>;
 };
 
-export function createInMemoryGenerationStore(
-  projectStore: ProjectStore,
-  options: InMemoryGenerationStoreOptions = {},
-): GenerationStore {
-  const jobs = new Map<string, StoredGeneration>();
-  const provider = new MockAiProvider();
-  const renderScreenshot = options.renderScreenshot ?? renderHtmlScreenshot;
+export type QueuedGenerationStoreOptions = {
+  projectStore: ProjectStore;
+  generationJobs: Pick<GenerationJobRepository, "createQueued" | "findById" | "cancel">;
+  queue: GenerationQueue;
+};
 
+export function createQueuedGenerationStore({
+  projectStore,
+  generationJobs,
+  queue,
+}: QueuedGenerationStoreOptions): GenerationStore {
   return {
     async createJob(projectId, input) {
       const project = await projectStore.getProject(projectId);
       if (!project) throw new GenerationProjectNotFoundError();
 
+      const job = await generationJobs.createQueued(projectId, input);
+      await queue.enqueueGenerationJob(job.id);
+      return { job };
+    },
+
+    async getJob(jobId) {
+      const job = await generationJobs.findById(jobId);
+      if (!job) return null;
+
+      const project = await projectStore.getProject(job.projectId);
+      return project ? { job } : null;
+    },
+
+    async cancelJob(jobId) {
+      const job = await generationJobs.findById(jobId);
+      if (!job) return null;
+
+      const project = await projectStore.getProject(job.projectId);
+      if (!project) return null;
+
+      if (job.status === "completed" || job.status === "failed") {
+        throw new GenerationJobNotCancellableError(job.status);
+      }
+      if (job.status === "cancelled") return { job };
+
+      const cancelledJob = await generationJobs.cancel(jobId);
+      if (!cancelledJob) {
+        const latestJob = await generationJobs.findById(jobId);
+        if (latestJob?.status === "cancelled") return { job: latestJob };
+        throw new GenerationJobNotCancellableError(latestJob?.status ?? job.status);
+      }
+
+      await queue.removeGenerationJob(jobId).catch(() => false);
+      return { job: cancelledJob };
+    },
+  };
+}
+
+export function createInMemoryGenerationJobRepository(): GenerationJobRepository {
+  const jobs = new Map<string, GenerationJob>();
+  const leaseExpiresAtByJobId = new Map<string, number>();
+
+  return {
+    async createQueued(projectId, input) {
       const now = new Date().toISOString();
       const job: GenerationJob = {
         id: `job_${randomUUID()}`,
         projectId,
-        type: "generate_screen",
-        status: "running",
+        type: input.type,
+        status: "queued",
         prompt: input.prompt,
         deviceType: input.deviceType,
         mode: input.mode,
@@ -46,96 +92,172 @@ export function createInMemoryGenerationStore(
         createdAt: now,
         updatedAt: now,
       };
-      jobs.set(job.id, { job });
-
-      try {
-        const output = await provider.generateStructuredDesign({ ...input, projectId });
-        const parsed = DesignSpecSchema.safeParse(output.designSpec);
-        if (!parsed.success) {
-          job.status = "failed";
-          job.error = {
-            code: "VALIDATION_ERROR",
-            message: "Generated DesignSpec failed validation",
-            details: parsed.error.issues,
-          };
-          job.updatedAt = new Date().toISOString();
-          return { job };
-        }
-
-        const screenId = `screen_${randomUUID()}`;
-        const screenVersionId = `ver_${randomUUID()}`;
-        const htmlCode = designSpecToHtml(parsed.data);
-        const screenshotArtifactId = await createScreenshotArtifactId(
-          {
-            htmlCode,
-            width: parsed.data.viewport.width,
-            height: parsed.data.viewport.height,
-          },
-          renderScreenshot,
-        );
-        const screenVersion: ScreenVersion = {
-          id: screenVersionId,
-          screenId,
-          versionNumber: 1,
-          sourcePrompt: input.prompt,
-          operation: "generate",
-          designSpec: parsed.data,
-          htmlCode,
-          reactCode: null,
-          screenshotArtifactId,
-          parentVersionId: null,
-          createdAt: new Date().toISOString(),
-        };
-
-        job.status = "completed";
-        job.result = { screenId, screenVersionId };
-        job.updatedAt = new Date().toISOString();
-        const stored = { job, screenVersion };
-        jobs.set(job.id, stored);
-        return stored;
-      } catch (error) {
-        job.status = "failed";
-        job.error = {
-          code: "AI_PROVIDER_ERROR",
-          message: error instanceof Error ? error.message : "Generation failed",
-        };
-        job.updatedAt = new Date().toISOString();
-        return { job };
-      }
+      jobs.set(job.id, job);
+      return job;
     },
 
-    async getJob(jobId) {
+    async findById(jobId) {
       return jobs.get(jobId) ?? null;
     },
+
+    async findByIdForUpdate(jobId) {
+      return jobs.get(jobId) ?? null;
+    },
+
+    async listQueued(limit) {
+      return [...jobs.values()]
+        .filter((job) => job.status === "queued")
+        .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+        .slice(0, limit);
+    },
+
+    async acquireQueued(jobId, leaseDurationMs) {
+      const existing = jobs.get(jobId);
+      if (!existing || existing.status !== "queued") return null;
+
+      const running: GenerationJob = {
+        ...existing,
+        status: "running",
+        error: null,
+        updatedAt: new Date().toISOString(),
+      };
+      jobs.set(jobId, running);
+      leaseExpiresAtByJobId.set(jobId, Date.now() + normalizeLeaseDuration(leaseDurationMs));
+      return running;
+    },
+
+    async renewLease(jobId, leaseDurationMs) {
+      const existing = jobs.get(jobId);
+      if (!existing || existing.status !== "running") return false;
+      leaseExpiresAtByJobId.set(jobId, Date.now() + normalizeLeaseDuration(leaseDurationMs));
+      return true;
+    },
+
+    async requeueExpiredRunning(now, limit) {
+      const expired = [...jobs.values()]
+        .filter(
+          (job) =>
+            job.status === "running" &&
+            (leaseExpiresAtByJobId.get(job.id) ?? Number.POSITIVE_INFINITY) <= now.getTime(),
+        )
+        .sort((left, right) => left.updatedAt.localeCompare(right.updatedAt))
+        .slice(0, limit)
+        .map((job) => {
+          const queued: GenerationJob = {
+            ...job,
+            status: "queued",
+            error: {
+              code: "WORKER_LEASE_EXPIRED",
+              message: "The generation worker stopped renewing its lease",
+            },
+            updatedAt: now.toISOString(),
+          };
+          jobs.set(job.id, queued);
+          leaseExpiresAtByJobId.delete(job.id);
+          return queued;
+        });
+
+      return expired;
+    },
+
+    async cancel(jobId) {
+      const existing = jobs.get(jobId);
+      if (!existing) return null;
+      if (existing.status === "cancelled") return existing;
+      if (existing.status !== "queued" && existing.status !== "running") return null;
+
+      const cancelled: GenerationJob = {
+        ...existing,
+        status: "cancelled",
+        error: null,
+        updatedAt: new Date().toISOString(),
+      };
+      jobs.set(jobId, cancelled);
+      leaseExpiresAtByJobId.delete(jobId);
+      return cancelled;
+    },
+
+    async releaseForRetry(jobId, error) {
+      const existing = jobs.get(jobId);
+      if (!existing || existing.status !== "running") {
+        throw new Error(`Generation job ${jobId} cannot be released for retry`);
+      }
+
+      const queued: GenerationJob = {
+        ...existing,
+        status: "queued",
+        error: {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+        },
+        updatedAt: new Date().toISOString(),
+      };
+      jobs.set(jobId, queued);
+      leaseExpiresAtByJobId.delete(jobId);
+      return queued;
+    },
+
+    async complete(jobId, result) {
+      const existing = jobs.get(jobId);
+      if (!existing) throw new Error(`Generation job ${jobId} not found`);
+      if (existing.status === "completed" && existing.result) return existing;
+      if (existing.status !== "running") {
+        throw new Error(`Generation job ${jobId} cannot complete from status ${existing.status}`);
+      }
+
+      const completed: GenerationJob = {
+        ...existing,
+        status: "completed",
+        result,
+        error: null,
+        updatedAt: new Date().toISOString(),
+      };
+      jobs.set(jobId, completed);
+      leaseExpiresAtByJobId.delete(jobId);
+      return completed;
+    },
+
+    async fail(jobId, error: GenerationJobFailure) {
+      const existing = jobs.get(jobId);
+      if (!existing) throw new Error(`Generation job ${jobId} not found`);
+      if (existing.status !== "queued" && existing.status !== "running") return existing;
+
+      const failed: GenerationJob = {
+        ...existing,
+        status: "failed",
+        error: {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+        },
+        updatedAt: new Date().toISOString(),
+      };
+      jobs.set(jobId, failed);
+      leaseExpiresAtByJobId.delete(jobId);
+      return failed;
+    },
   };
+}
+
+function normalizeLeaseDuration(leaseDurationMs: number): number {
+  if (!Number.isFinite(leaseDurationMs) || leaseDurationMs < 1_000) {
+    throw new Error("Generation job lease duration must be at least 1000ms");
+  }
+
+  return Math.floor(leaseDurationMs);
+}
+
+export class GenerationJobNotCancellableError extends Error {
+  constructor(public readonly status: GenerationJob["status"]) {
+    super(`Generation job cannot be cancelled from status ${status}`);
+    this.name = "GenerationJobNotCancellableError";
+  }
 }
 
 export class GenerationProjectNotFoundError extends Error {
   constructor() {
     super("Project not found");
     this.name = "GenerationProjectNotFoundError";
-  }
-}
-
-async function createScreenshotArtifactId(
-  input: {
-    htmlCode: string;
-    width: number;
-    height: number;
-  },
-  renderScreenshot: ScreenshotRenderer,
-): Promise<string | null> {
-  try {
-    const screenshot = await renderScreenshot({
-      html: input.htmlCode,
-      viewport: {
-        width: Math.min(input.width, 1440),
-        height: Math.min(input.height, 1024),
-      },
-    });
-
-    return screenshot.bytes.byteLength > 0 ? `artifact_${randomUUID()}` : null;
-  } catch {
-    return null;
   }
 }

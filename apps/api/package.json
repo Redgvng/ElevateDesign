@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "tsx watch src/main.ts",
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json",
@@ -14,7 +14,7 @@
     "@hono/node-server": "^1.19.6",
     "@odc/db": "workspace:*",
     "@odc/shared": "workspace:*",
-    "@odc/worker": "workspace:*",
+    "bullmq": "^5.65.1",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.10.8",
     "pg": "^8.16.3",

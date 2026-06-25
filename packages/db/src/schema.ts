@@ -231,12 +231,14 @@ export const generationJobs = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   },
   (table) => [
     index("generation_jobs_project_created_idx").on(table.projectId, table.createdAt),
     index("generation_jobs_status_created_idx").on(table.status, table.createdAt),
+    index("generation_jobs_status_lease_idx").on(table.status, table.leaseExpiresAt),
     uniqueIndex("generation_jobs_project_idempotency_unique")
       .on(table.projectId, table.idempotencyKey)
       .where(sql`${table.idempotencyKey} is not null`),

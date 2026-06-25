@@ -1,5 +1,7 @@
 # Durable Product Foundation Implementation Plan
 
+> **Statut (2026-06-25): Jalons 0 à 5 implémentés et validés end-to-end** sur la branche `codex/generation-persistence-queue`. Boucle `prompt -> job -> Screen -> ScreenVersion -> artefacts -> canvas -> preview` durable et récupérable: infra docker (Postgres/Redis/MinIO) + migrations reproductibles, jobs BullMQ exécutés par un worker séparé avec leases/heartbeat/reconciler, persistance transactionnelle idempotente, stockage réel des screenshots (S3/MinIO), sauvegarde canvas avec révision et contrôle de concurrence optimiste (409). Validation: typecheck propre, 93 tests unitaires verts, e2e Playwright 3/3. Restent hors MVP: auth/ownership et observabilité avancée.
+
 > Ce plan consolide les Phases 1 à 3 avant de démarrer les versions, variantes, design systems et exports. Il transforme le prototype local en première fondation d'un produit exploitable.
 
 **Goal:** rendre la boucle `prompt -> job -> Screen -> ScreenVersion -> artefacts -> canvas -> preview` durable, asynchrone, récupérable et sécurisée.
@@ -88,13 +90,14 @@ AI_PROVIDER=mock
 
 ### Tâches
 
-- [ ] Ajouter une validation de configuration au démarrage.
-- [ ] Refuser le fallback mémoire implicite en production.
-- [ ] Ajouter `db:generate`, `db:migrate`, `db:studio` et `infra:up`.
-- [ ] Générer une première migration à partir du schéma canonique.
-- [ ] Ajouter une commande qui crée le bucket local si nécessaire.
-- [ ] Séparer `/health/live` et `/health/ready`.
-- [ ] Vérifier dans readiness la base, Redis et le stockage objet.
+- [x] Ajouter une validation de configuration au démarrage.
+- [x] Refuser le fallback mémoire implicite en production.
+- [x] Ajouter `db:migrate`, `infra:up` et `infra:down`.
+- [ ] Ajouter `db:generate` et `db:studio`.
+- [x] Générer une première migration à partir du schéma canonique.
+- [x] Ajouter une commande qui crée le bucket local si nécessaire.
+- [x] Séparer `/health/live` et `/health/ready`.
+- [x] Vérifier dans readiness la base, Redis et le stockage objet.
 
 ### Critère de sortie
 
@@ -217,14 +220,14 @@ Pour un node `screen`:
 
 ### Tâches
 
-- [ ] Mettre à jour les schémas partagés.
-- [ ] Corriger le modèle canvas Screen/Version.
-- [ ] Ajouter les contraintes, FK et index SQL.
-- [ ] Implémenter les repositories Postgres.
-- [ ] Supprimer les stores mémoire du chemin produit normal.
-- [ ] Garder des fakes injectables uniquement pour tests unitaires.
-- [ ] Ajouter des tests d'intégration Postgres.
-- [ ] Ajouter un test de migration depuis une base vide.
+- [x] Mettre à jour les schémas partagés.
+- [x] Corriger le modèle canvas Screen/Version.
+- [x] Ajouter les contraintes, FK et index SQL.
+- [x] Implémenter les repositories Postgres.
+- [x] Supprimer les stores mémoire du chemin produit normal.
+- [x] Garder des fakes injectables uniquement pour tests unitaires.
+- [ ] Ajouter des tests d'intégration Postgres automatisés.
+- [ ] Ajouter un test automatisé de migration depuis une base vide.
 
 ### Critère de sortie
 
@@ -287,13 +290,15 @@ Le worker doit:
 
 ### Tâches
 
-- [ ] Ajouter BullMQ et la connexion Redis partagée.
-- [ ] Transformer l'app worker en vrai process consommateur.
-- [ ] Déplacer toute génération hors de l'API.
-- [ ] Implémenter les transitions de statut persistées.
-- [ ] Ajouter les retries bornés et le reconciler.
-- [ ] Ajouter un endpoint d'annulation.
-- [ ] Ajouter des tests de redémarrage et d'idempotence.
+- [x] Ajouter BullMQ et la connexion Redis partagée.
+- [x] Transformer l'app worker en vrai process consommateur.
+- [x] Déplacer toute génération hors de l'API.
+- [x] Implémenter les transitions de statut persistées.
+- [x] Rendre les retries BullMQ réellement réexécutables côté état PostgreSQL.
+- [x] Ajouter un reconciler pour republier les jobs `queued` absents de Redis.
+- [x] Ajouter un endpoint d'annulation et retirer le job BullMQ en attente en best-effort.
+- [x] Rendre la completion transactionnelle idempotente contre les doubles livraisons.
+- [ ] Ajouter des tests automatisés de redémarrage.
 - [ ] Vérifier plusieurs jobs parallèles.
 
 ### Critère de sortie
@@ -359,14 +364,15 @@ interface ArtifactStore {
 
 ### Tâches
 
-- [ ] Stocker réellement les bytes screenshot.
-- [ ] Calculer checksum et taille.
-- [ ] Persister l'Artifact après upload réussi.
-- [ ] Nettoyer l'objet si la transaction DB finale échoue.
-- [ ] Ajouter `GET /api/artifacts/:artifactId` ou URL signée.
-- [ ] Ajouter politiques de cache et disposition adaptées.
-- [ ] Préparer les types `html`, `reactZip`, `log`.
-- [ ] Tester upload, lecture, suppression et erreur stockage.
+- [x] Stocker réellement les bytes screenshot.
+- [x] Calculer checksum et taille.
+- [x] Persister l'Artifact après upload réussi.
+- [x] Nettoyer l'objet si la transaction DB finale échoue.
+- [x] Ajouter `GET /api/artifacts/:artifactId` et `GET /api/artifacts/:artifactId/content`.
+- [x] Ajouter politiques de cache immuable, ETag, disposition et `nosniff` adaptées.
+- [x] Préparer les types `html`, `reactZip`, `log`.
+- [ ] Ajouter les tests automatisés de lecture d'objet et d'URL signée.
+- [x] Tester upload, suppression et erreurs du stockage; valider un upload réel MinIO en smoke test.
 
 ### Critère de sortie
 
@@ -404,10 +410,10 @@ Traiter la preview générée comme un contenu hostile côté serveur et navigat
 
 ### Tâches
 
-- [ ] Bloquer les requêtes réseau dans Playwright.
+- [x] Bloquer les requêtes HTTP, WebSocket et service workers dans Playwright.
 - [ ] Capturer logs et erreurs comme artefact.
 - [ ] Ajouter tests d'accès parent/localStorage/navigation.
-- [ ] Ajouter test SSRF réseau refusé.
+- [x] Ajouter test SSRF réseau refusé.
 - [ ] Ajouter limites de concurrence du renderer.
 - [ ] Distinguer `RENDER_ERROR` et `PROVIDER_ERROR`.
 
@@ -457,11 +463,11 @@ React Query ou une abstraction équivalente est recommandée pour:
 ### Tâches
 
 - [ ] Ajouter contrats de réponse Zod.
-- [ ] Implémenter routes et repositories.
+- [x] Implémenter routes et repositories.
 - [ ] Corriger le mapping canvas.
-- [ ] Réhydrater la preview après reload.
+- [x] Réhydrater la preview après reload.
 - [ ] Reprendre un job en cours après reload.
-- [ ] Afficher les screenshots réels.
+- [x] Afficher les screenshots réels dans le mode Snapshot de la preview.
 - [ ] Ajouter tests E2E reload et redémarrage API.
 
 ### Critère de sortie
@@ -508,9 +514,9 @@ Le backend accepte la mise à jour uniquement si la révision reçue est la rév
 
 ### Tâches
 
-- [ ] Ajouter `revision` au schéma et au contrat.
-- [ ] Implémenter update conditionnelle.
-- [ ] Retourner `409 CANVAS_CONFLICT`.
+- [x] Ajouter `revision` au schéma et au contrat.
+- [x] Implémenter update conditionnelle.
+- [x] Retourner `409 CANVAS_CONFLICT`.
 - [ ] Débouncer et sérialiser les écritures frontend.
 - [ ] Ajouter validation métier.
 - [ ] Tester réponses désordonnées et conflit multi-onglets.
@@ -620,7 +626,7 @@ Ne jamais inclure:
 - [ ] Ajouter logger structuré et middleware requestId.
 - [ ] Ajouter métriques Prometheus ou OpenTelemetry.
 - [ ] Ajouter tracing API -> queue -> worker.
-- [ ] Ajouter reconciliation des jobs bloqués.
+- [x] Ajouter reconciliation des jobs bloqués via leases PostgreSQL renouvelés par heartbeat.
 - [ ] Ajouter politique de rétention jobs/logs/artefacts.
 - [ ] Documenter backup et restauration Postgres/object storage.
 - [ ] Ajouter smoke test déploiement.

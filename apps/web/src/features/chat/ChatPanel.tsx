@@ -5,10 +5,19 @@ type ChatPanelProps = {
   job: GenerationJob | null;
   isSubmitting: boolean;
   error: string | null;
+  isCancelling: boolean;
   onSubmitPrompt: (prompt: string) => Promise<void>;
+  onCancelJob: () => Promise<void>;
 };
 
-export function ChatPanel({ job, isSubmitting, error, onSubmitPrompt }: ChatPanelProps) {
+export function ChatPanel({
+  job,
+  isSubmitting,
+  error,
+  isCancelling,
+  onSubmitPrompt,
+  onCancelJob,
+}: ChatPanelProps) {
   const promptId = useId();
   const [prompt, setPrompt] = useState("");
 
@@ -42,6 +51,16 @@ export function ChatPanel({ job, isSubmitting, error, onSubmitPrompt }: ChatPane
           <div className="chat-message job-message">
             <span className={`job-status job-status-${job.status}`}>{formatStatus(job.status)}</span>
             <strong>{job.prompt}</strong>
+            {job.id !== "pending" && (job.status === "queued" || job.status === "running") ? (
+              <button
+                className="cancel-job-button"
+                type="button"
+                disabled={isCancelling}
+                onClick={() => void onCancelJob()}
+              >
+                {isCancelling ? "Cancelling..." : "Cancel generation"}
+              </button>
+            ) : null}
             {job.error ? <span className="job-error">{job.error.message}</span> : null}
           </div>
         ) : null}
@@ -77,5 +96,7 @@ function formatStatus(status: GenerationJob["status"]): string {
       return "Job completed";
     case "failed":
       return "Job failed";
+    case "cancelled":
+      return "Job cancelled";
   }
 }

@@ -118,7 +118,10 @@ Etat MVP actuel:
 
 - le worker sait rendre un HTML en PNG avec Playwright;
 - la génération attache un `screenshotArtifactId` à la `ScreenVersion` quand la capture réussit;
-- le stockage durable de l'image et son affichage dans les nodes Excalidraw restent à brancher.
+- les screenshots sont stockés comme artefacts et consultables via l'API d'artefacts;
+- la preview peut afficher le HTML live ou le screenshot persistant en mode Snapshot;
+- l'ouverture d'un workspace peut réhydrater la preview depuis la version courante d'un screen déjà présent sur le canvas;
+- l'affichage direct des screenshots dans les nodes Excalidraw reste à brancher.
 
 ## Performance
 

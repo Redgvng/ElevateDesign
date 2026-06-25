@@ -207,6 +207,7 @@ type CanvasDocument = {
   id: string;
   projectId: string;
   schemaVersion: "1.0";
+  revision: number;
   nodes: CanvasNode[];
   edges: CanvasEdge[];
   viewport: {
@@ -225,12 +226,14 @@ type CanvasNode = {
   id: string;
   type: "screen" | "prompt" | "image" | "code" | "note" | "designSystem";
   refId: string | null;
+  pinnedVersionId?: string | null;
   x: number;
   y: number;
   width: number;
   height: number;
   title: string;
   body: string | null;
+  screenshotArtifactId?: string | null;
 };
 ```
 
@@ -266,5 +269,7 @@ type Artifact = {
 - Toute modification d'écran crée une nouvelle ScreenVersion.
 - Un Screen pointe vers une seule version courante.
 - Le CanvasNode de type screen pointe vers Screen, pas vers ScreenVersion.
+- `pinnedVersionId` est optionnel et sert uniquement à figer volontairement une version historique sur le canvas.
+- Les sauvegardes canvas utilisent `revision` pour refuser les écritures concurrentes obsolètes.
 - Les exports pointent vers ScreenVersion pour rester reproductibles.
 - Le DesignSpec doit être validé avant tout rendu.

@@ -10,6 +10,7 @@ describe("canvas routes", () => {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
+        revision: 1,
         nodes: [
           {
             id: "node_screen_000001",
@@ -34,6 +35,7 @@ describe("canvas routes", () => {
     await expect(updateResponse.json()).resolves.toMatchObject({
       canvas: {
         projectId: project.id,
+        revision: 2,
         nodes: [{ id: "node_screen_000001", x: 480, y: 240 }],
         viewport: { x: -120, y: -60, zoom: 0.85 },
       },
@@ -48,6 +50,45 @@ describe("canvas routes", () => {
     });
   });
 
+  it("rejects an outdated revision with the current canvas", async () => {
+    const app = createApp();
+    const project = await createProject(app, "Canvas Conflict Project");
+    const firstUpdate = await app.request(`/api/projects/${project.id}/canvas`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        revision: 1,
+        nodes: [],
+        edges: [],
+        viewport: { x: 10, y: 20, zoom: 1 },
+      }),
+    });
+    expect(firstUpdate.status).toBe(200);
+
+    const staleUpdate = await app.request(`/api/projects/${project.id}/canvas`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        revision: 1,
+        nodes: [],
+        edges: [],
+        viewport: { x: 999, y: 999, zoom: 1 },
+      }),
+    });
+
+    expect(staleUpdate.status).toBe(409);
+    await expect(staleUpdate.json()).resolves.toMatchObject({
+      error: {
+        code: "CANVAS_CONFLICT",
+        message: "Canvas changed since it was loaded",
+      },
+      canvas: {
+        revision: 2,
+        viewport: { x: 10, y: 20, zoom: 1 },
+      },
+    });
+  });
+
   it("rejects invalid canvas updates", async () => {
     const app = createApp();
     const project = await createProject(app, "Invalid Canvas Project");
@@ -56,6 +97,7 @@ describe("canvas routes", () => {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
+        revision: 1,
         nodes: [],
         edges: [],
         viewport: { x: 0, y: 0, zoom: 0 },
@@ -78,6 +120,7 @@ describe("canvas routes", () => {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
+        revision: 1,
         nodes: [],
         edges: [],
         viewport: { x: 0, y: 0, zoom: 1 },

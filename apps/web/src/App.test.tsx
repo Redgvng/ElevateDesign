@@ -44,6 +44,7 @@ const emptyCanvas = {
   id: "canvas_proj_000001",
   projectId: "proj_000001",
   schemaVersion: "1.0",
+  revision: 1,
   nodes: [],
   edges: [],
   viewport: { x: 0, y: 0, zoom: 1 },
@@ -362,6 +363,7 @@ describe("App", () => {
       (request) => request.url === `/api/projects/${projects[0].id}/canvas` && request.method === "PUT",
     );
     expect(putCanvas?.body).toMatchObject({
+      revision: 1,
       nodes: [
         {
           type: "screen",
@@ -376,6 +378,89 @@ describe("App", () => {
 
     const preview = screen.getByTitle("Generated screen preview") as HTMLIFrameElement;
     expect(preview.srcdoc).toBe(generatedHtml);
+  });
+
+  it("rehydrates the current screen version into the preview when reopening a workspace", async () => {
+    const fetchMock = vi.mocked(fetch);
+    const restoredHtml =
+      "<!doctype html><html><body><h1>Restored persistent dashboard</h1></body></html>";
+    const persistedCanvas = {
+      ...emptyCanvas,
+      nodes: [
+        {
+          id: "node_screen_000001",
+          type: "screen",
+          refId: "screen_000001",
+          pinnedVersionId: null,
+          x: 80,
+          y: 80,
+          width: 260,
+          height: 190,
+          title: "Operations Dashboard",
+          body: "Version 1",
+          screenshotArtifactId: "artifact_000001",
+        },
+      ],
+    };
+
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+
+      if (url === "/api/projects" && method === "GET") {
+        return jsonResponse({ projects });
+      }
+
+      if (url === `/api/projects/${projects[0].id}/canvas` && method === "GET") {
+        return jsonResponse({ canvas: persistedCanvas });
+      }
+
+      if (url === `/api/projects/${projects[0].id}/screens` && method === "GET") {
+        return jsonResponse({
+          screens: [
+            {
+              screen: {
+                id: "screen_000001",
+                projectId: projects[0].id,
+                title: "Operations Dashboard",
+                deviceType: "desktop",
+                currentVersionId: "ver_000001",
+                createdAt: "2026-06-17T10:00:00.000Z",
+                updatedAt: "2026-06-17T10:00:00.000Z",
+              },
+              currentVersion: {
+                id: "ver_000001",
+                screenId: "screen_000001",
+                versionNumber: 1,
+                operation: "generate",
+                screenshotArtifactId: "artifact_000001",
+                parentVersionId: null,
+                createdAt: "2026-06-17T10:00:00.000Z",
+              },
+            },
+          ],
+        });
+      }
+
+      if (url === "/api/screen-versions/ver_000001" && method === "GET") {
+        return jsonResponse({
+          screenVersion: {
+            ...screenVersion,
+            htmlCode: restoredHtml,
+            screenshotArtifactId: "artifact_000001",
+          },
+        });
+      }
+
+      return jsonResponse({ error: { code: "NOT_FOUND", message: "Not found" } }, 404);
+    });
+
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Operations Dashboard" }));
+
+    const preview = await screen.findByTitle("Generated screen preview") as HTMLIFrameElement;
+    await waitFor(() => expect(preview.srcdoc).toBe(restoredHtml));
   });
 });
 

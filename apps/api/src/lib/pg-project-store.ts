@@ -5,6 +5,7 @@ import { Pool } from "pg";
 import { canvasDocuments, projectCreateRequests, projects, workspaces } from "@odc/db";
 import type { CanvasDocument, Project, UpdateCanvasDocumentInput } from "@odc/shared";
 import {
+  CanvasRevisionConflictError,
   createProjectRequestHash,
   ProjectIdempotencyConflictError,
   type ProjectStore,
@@ -74,6 +75,7 @@ export function createPgProjectStore(
             id: `canvas_${id}`,
             projectId: id,
             schemaVersion: "1.0",
+            revision: 1,
             nodes: [],
             edges: [],
             viewport: { x: 0, y: 0, zoom: 1 },
@@ -143,7 +145,10 @@ export function createPgProjectStore(
     async getCanvas(projectId) {
       await ensureWorkspace();
       const rows = await db
-        .select({ document: canvasDocuments.document })
+        .select({
+          document: canvasDocuments.document,
+          revision: canvasDocuments.revision,
+        })
         .from(canvasDocuments)
         .innerJoin(projects, eq(canvasDocuments.projectId, projects.id))
         .where(
@@ -153,7 +158,7 @@ export function createPgProjectStore(
           ),
         )
         .limit(1);
-      return rows[0]?.document ?? null;
+      return rows[0] ? serializeCanvas(rows[0].document, rows[0].revision) : null;
     },
 
     async updateCanvas(projectId, input) {
@@ -174,27 +179,56 @@ export function createPgProjectStore(
           )
           .limit(1);
 
-        const existing = rows[0]?.document;
-        if (!existing) return null;
+        const existingRow = rows[0];
+        if (!existingRow) return null;
+
+        const currentCanvas = serializeCanvas(existingRow.document, existingRow.revision);
+        if (input.revision !== existingRow.revision) {
+          throw new CanvasRevisionConflictError(currentCanvas);
+        }
 
         const now = new Date();
-        const canvas = buildUpdatedCanvasDocument(existing, input, now);
-
-        await tx
+        const canvas = buildUpdatedCanvasDocument(currentCanvas, input, now);
+        const updatedRows = await tx
           .update(canvasDocuments)
           .set({
             document: canvas,
-            revision: (rows[0]?.revision ?? 0) + 1,
+            revision: canvas.revision,
             updatedAt: now,
           })
-          .where(eq(canvasDocuments.projectId, projectId));
+          .where(
+            and(
+              eq(canvasDocuments.projectId, projectId),
+              eq(canvasDocuments.revision, input.revision),
+            ),
+          )
+          .returning({
+            document: canvasDocuments.document,
+            revision: canvasDocuments.revision,
+          });
+
+        if (!updatedRows[0]) {
+          const latestRows = await tx
+            .select({
+              document: canvasDocuments.document,
+              revision: canvasDocuments.revision,
+            })
+            .from(canvasDocuments)
+            .where(eq(canvasDocuments.projectId, projectId))
+            .limit(1);
+          const latest = latestRows[0];
+          if (!latest) return null;
+          throw new CanvasRevisionConflictError(
+            serializeCanvas(latest.document, latest.revision),
+          );
+        }
 
         await tx
           .update(projects)
           .set({ updatedAt: now })
           .where(and(eq(projects.workspaceId, options.workspaceId), eq(projects.id, projectId)));
 
-        return canvas;
+        return serializeCanvas(updatedRows[0].document, updatedRows[0].revision);
       });
     },
   };
@@ -249,10 +283,18 @@ function buildUpdatedCanvasDocument(
 ): CanvasDocument {
   return {
     ...existing,
+    revision: existing.revision + 1,
     nodes: input.nodes,
     edges: input.edges,
     viewport: input.viewport,
     updatedAt: updatedAt.toISOString(),
+  };
+}
+
+function serializeCanvas(document: CanvasDocument, revision: number): CanvasDocument {
+  return {
+    ...document,
+    revision,
   };
 }
 

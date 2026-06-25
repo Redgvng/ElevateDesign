@@ -48,6 +48,7 @@ export function createInMemoryProjectStore(): ProjectStore {
         id: `canvas_${id}`,
         projectId: id,
         schemaVersion: "1.0",
+        revision: 1,
         nodes: [],
         edges: [],
         viewport: { x: 0, y: 0, zoom: 1 },
@@ -76,10 +77,14 @@ export function createInMemoryProjectStore(): ProjectStore {
     async updateCanvas(projectId, input) {
       const entry = projects.get(projectId);
       if (!entry) return null;
+      if (input.revision !== entry.canvas.revision) {
+        throw new CanvasRevisionConflictError(entry.canvas);
+      }
 
       const now = new Date().toISOString();
       const canvas: CanvasDocument = {
         ...entry.canvas,
+        revision: entry.canvas.revision + 1,
         nodes: input.nodes,
         edges: input.edges,
         viewport: input.viewport,
@@ -95,6 +100,15 @@ export function createInMemoryProjectStore(): ProjectStore {
       return canvas;
     },
   };
+}
+
+export class CanvasRevisionConflictError extends Error {
+  constructor(public readonly currentCanvas: CanvasDocument) {
+    super(
+      `Canvas revision conflict: expected ${currentCanvas.revision}, received an outdated revision`,
+    );
+    this.name = "CanvasRevisionConflictError";
+  }
 }
 
 export class ProjectIdempotencyConflictError extends Error {

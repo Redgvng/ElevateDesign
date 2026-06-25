@@ -12,6 +12,7 @@ Documents de pilotage:
 
 - [Audit de préparation produit](16-production-readiness-audit.md)
 - [Plan 10: fondation produit durable](plans/10-durable-product-foundation.md)
+- [Plan 11: bibliothèque de modules UI](plans/11-ui-module-library.md)
 
 La priorité courante est la persistance canonique de `Screen` et `ScreenVersion`, la queue BullMQ, les workers séparés, le stockage réel des artefacts et la réhydratation complète du workspace.
 
@@ -91,6 +92,8 @@ Chaque génération crée un node déplaçable sur le canvas.
 
 ## Phase 3.5: fondation produit durable
 
+Statut: implémentée et validée end-to-end (2026-06-25) sur la branche `codex/generation-persistence-queue`. Typecheck propre, 93 tests unitaires verts, suite e2e Playwright 3/3 incluant la boucle de génération complète et la réhydratation canvas après rechargement. Screenshots réellement stockés (MinIO), screens/versions persistés en Postgres. Reste: livraison (commit/PR) et durcissement auth (hors MVP).
+
 Objectif:
 
 Transformer la boucle locale existante en pipeline persistant, asynchrone, récupérable et sécurisé.
@@ -132,6 +135,29 @@ Livrables:
 Critère de sortie:
 
 Un écran peut avoir plusieurs versions et variantes sélectionnables.
+
+## Phase 4.5: bibliothèque de modules UI
+
+Objectif:
+
+Diversifier les générations avec un catalogue de modules UI validé, DesignSpec-first et compatible shadcn pour les futurs exports React/Tailwind.
+
+Livrables:
+
+- contrats Zod `ModuleDefinition`, `ModuleVariant`, `ModuleSlot`;
+- catalogue MVP data-only pour dashboards, tables, forms, auth, pricing, settings et feedback;
+- sélection déterministe de modules candidats par prompt et device;
+- `ScreenPlan` intermédiaire pour tracer les choix de composition;
+- métadonnées optionnelles `moduleRefs` dans `DesignSpec`;
+- règles documentées empêchant shadcn ou JSX de devenir la source canonique.
+
+Plan:
+
+- [Plan 11: bibliothèque de modules UI](plans/11-ui-module-library.md)
+
+Critère de sortie:
+
+Deux prompts proches peuvent produire des structures `DesignSpec` différentes, traçables et compilables sans dépendre de React ou de shadcn au runtime.
 
 ## Phase 5: design system
 
@@ -207,10 +233,11 @@ Livrables:
 
 1. Consolider la Phase 3.5 avec le Plan 10.
 2. Phase 4: versions et variantes.
-3. Phase 5: design system.
-4. Phase 6: exports.
-5. Phase 7A: MCP connaissance.
-6. Phase 7B: runtime agentique Eve.
-7. Phase 8: intégrations avancées.
+3. Phase 4.5: bibliothèque de modules UI.
+4. Phase 5: design system.
+5. Phase 6: exports.
+6. Phase 7A: MCP connaissance.
+7. Phase 7B: runtime agentique Eve.
+8. Phase 8: intégrations avancées.
 
 Les Phases 1 à 3 restent la base fonctionnelle, mais leur consolidation durable est désormais le chemin critique. Ne pas démarrer Figma, collaboration temps réel ou import codebase avant d'avoir une boucle stable prompt vers preview vers canvas. Ne pas déplacer la source de vérité produit dans Eve: le runtime agentique doit rester derrière les contrats backend.
