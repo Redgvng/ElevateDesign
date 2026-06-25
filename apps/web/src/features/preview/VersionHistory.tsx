@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ScreenVersion, ScreenVersionSummary } from "@odc/shared";
+import { artifactContentUrl } from "./PreviewPanel";
 
 type VersionHistoryProps = {
   screenId: string | null;
@@ -18,6 +19,7 @@ type ScreenVersionResponse = {
 export function VersionHistory({ screenId, activeVersionId, onRevert }: VersionHistoryProps) {
   const [versions, setVersions] = useState<ScreenVersionSummary[]>([]);
   const [pendingVersionId, setPendingVersionId] = useState<string | null>(null);
+  const [compareVersionId, setCompareVersionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadVersions = useCallback(async (id: string) => {
@@ -35,6 +37,7 @@ export function VersionHistory({ screenId, activeVersionId, onRevert }: VersionH
   }, []);
 
   useEffect(() => {
+    setCompareVersionId(null);
     if (!screenId) {
       setVersions([]);
       return;
@@ -72,6 +75,15 @@ export function VersionHistory({ screenId, activeVersionId, onRevert }: VersionH
 
   if (!screenId || versions.length < 2) return null;
 
+  const activeSummary = versions.find((version) => version.id === activeVersionId) ?? null;
+  const compareSummary = compareVersionId
+    ? versions.find((version) => version.id === compareVersionId) ?? null
+    : null;
+  const comparison =
+    activeSummary && compareSummary && compareSummary.screenshotArtifactId
+      ? { left: activeSummary, right: compareSummary }
+      : null;
+
   return (
     <section className="version-history" aria-label="Version history">
       <div className="panel-header">
@@ -90,19 +102,58 @@ export function VersionHistory({ screenId, activeVersionId, onRevert }: VersionH
               {isActive ? (
                 <span className="version-current">Current</span>
               ) : (
-                <button
-                  type="button"
-                  className="secondary-button"
-                  disabled={pendingVersionId !== null}
-                  onClick={() => void revertTo(version.id)}
-                >
-                  {pendingVersionId === version.id ? "Restoring…" : "Restore"}
-                </button>
+                <div className="version-actions">
+                  {version.screenshotArtifactId ? (
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      aria-pressed={compareVersionId === version.id}
+                      onClick={() =>
+                        setCompareVersionId((current) =>
+                          current === version.id ? null : version.id,
+                        )
+                      }
+                    >
+                      {compareVersionId === version.id ? "Hide compare" : "Compare"}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={pendingVersionId !== null}
+                    onClick={() => void revertTo(version.id)}
+                  >
+                    {pendingVersionId === version.id ? "Restoring…" : "Restore"}
+                  </button>
+                </div>
               )}
             </li>
           );
         })}
       </ul>
+
+      {comparison ? (
+        <div className="version-compare" aria-label="Version comparison">
+          <figure>
+            <figcaption>v{comparison.left.versionNumber} (current)</figcaption>
+            {comparison.left.screenshotArtifactId ? (
+              <img
+                src={artifactContentUrl(comparison.left.screenshotArtifactId)}
+                alt={`Version ${comparison.left.versionNumber} screenshot`}
+              />
+            ) : (
+              <p className="version-compare-empty">No screenshot</p>
+            )}
+          </figure>
+          <figure>
+            <figcaption>v{comparison.right.versionNumber}</figcaption>
+            <img
+              src={artifactContentUrl(comparison.right.screenshotArtifactId as string)}
+              alt={`Version ${comparison.right.versionNumber} screenshot`}
+            />
+          </figure>
+        </div>
+      ) : null}
 
       {error ? <p className="version-error">{error}</p> : null}
     </section>

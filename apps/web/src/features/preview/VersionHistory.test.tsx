@@ -106,6 +106,31 @@ describe("VersionHistory", () => {
     );
   });
 
+  it("shows a side-by-side screenshot comparison when Compare is clicked", async () => {
+    const withShots: ScreenVersionSummary[] = [
+      { ...summaries[0], screenshotArtifactId: "art_v2" },
+      { ...summaries[1], screenshotArtifactId: "art_v1" },
+    ];
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/screens/screen_1/versions") {
+        return jsonResponse({ versions: withShots });
+      }
+      return jsonResponse({ error: { code: "NOT_FOUND", message: "Not found" } }, 404);
+    });
+
+    const user = userEvent.setup();
+    render(<VersionHistory screenId="screen_1" activeVersionId="ver_2" onRevert={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Compare" })).toBeTruthy());
+    await user.click(screen.getByRole("button", { name: "Compare" }));
+
+    const images = await screen.findAllByRole("img");
+    expect(images).toHaveLength(2);
+    expect(images[0].getAttribute("src")).toBe("/api/artifacts/art_v2/content");
+    expect(images[1].getAttribute("src")).toBe("/api/artifacts/art_v1/content");
+  });
+
   it("renders nothing for a single-version screen", async () => {
     vi.mocked(fetch).mockImplementation(async () =>
       jsonResponse({ versions: [summaries[1]] }),
