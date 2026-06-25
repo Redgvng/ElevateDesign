@@ -485,8 +485,13 @@ button:hover:not(:disabled) {
   background: #eef2f7;
 }
 
-.preview-export-button {
+.preview-export-actions {
   margin-left: auto;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.preview-export-button {
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 4px 10px;

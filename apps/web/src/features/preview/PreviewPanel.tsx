@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { GenerationJob, ScreenVersion } from "@odc/shared";
+import { designSpecToReact, reactDownloadName } from "../../lib/designSpecToReact";
 
 type PreviewPanelProps = {
   job: GenerationJob | null;
@@ -51,19 +52,34 @@ export function PreviewPanel({ job, screenVersion }: PreviewPanelProps) {
           ) : null}
 
           {screenVersion ? (
-            <button
-              type="button"
-              className="preview-export-button"
-              onClick={() =>
-                downloadTextFile(
-                  htmlDownloadName(screenVersion.designSpec.title),
-                  screenVersion.htmlCode,
-                  "text/html",
-                )
-              }
-            >
-              Export HTML
-            </button>
+            <div className="preview-export-actions">
+              <button
+                type="button"
+                className="preview-export-button"
+                onClick={() =>
+                  downloadTextFile(
+                    htmlDownloadName(screenVersion.designSpec.title),
+                    screenVersion.htmlCode,
+                    "text/html",
+                  )
+                }
+              >
+                Export HTML
+              </button>
+              <button
+                type="button"
+                className="preview-export-button"
+                onClick={() =>
+                  downloadTextFile(
+                    reactDownloadName(screenVersion.designSpec.title),
+                    designSpecToReact(screenVersion.designSpec),
+                    "text/plain",
+                  )
+                }
+              >
+                Export React
+              </button>
+            </div>
           ) : null}
         </div>
 
