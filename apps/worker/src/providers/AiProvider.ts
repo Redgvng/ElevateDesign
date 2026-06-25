@@ -8,6 +8,7 @@ export type GenerateDesignInput = {
   mode: GenerationMode;
   screenId?: string;
   baseDesignSpec?: DesignSpec;
+  variantIndex?: number;
 };
 
 export type GenerateDesignOutput = {

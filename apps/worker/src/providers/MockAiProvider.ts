@@ -17,6 +17,20 @@ export class MockAiProvider implements AiProvider {
       };
     }
 
+    if (input.type === "generate_variants" && input.baseDesignSpec) {
+      const variantTitle = `${input.baseDesignSpec.title} · Variant ${(input.variantIndex ?? 0) + 1}`;
+      return {
+        designSpec: {
+          ...input.baseDesignSpec,
+          title: variantTitle,
+          root: {
+            ...input.baseDesignSpec.root,
+            name: variantTitle,
+          },
+        },
+      };
+    }
+
     const designSpec: DesignSpec = {
       schemaVersion: "1.0",
       title: "Operations Dashboard",

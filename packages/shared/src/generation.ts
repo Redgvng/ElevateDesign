@@ -29,6 +29,14 @@ export const CreateGenerationJobInputSchema = z.discriminatedUnion("type", [
     deviceType: DeviceTypeSchema,
     mode: GenerationModeSchema.default("fast"),
   }),
+  z.object({
+    type: z.literal("generate_variants"),
+    screenId: z.string().trim().min(1, "screenId is required"),
+    prompt: z.string().trim().min(1, "Prompt is required").max(4000),
+    deviceType: DeviceTypeSchema,
+    mode: GenerationModeSchema.default("fast"),
+    count: z.number().int().min(2).max(4).default(3),
+  }),
 ]);
 
 export const GenerationJobSchema = z.object({
@@ -40,6 +48,7 @@ export const GenerationJobSchema = z.object({
   deviceType: DeviceTypeSchema,
   mode: GenerationModeSchema,
   targetScreenId: z.string().nullish(),
+  variantCount: z.number().int().nullish(),
   result: z
     .object({
       screenId: z.string(),

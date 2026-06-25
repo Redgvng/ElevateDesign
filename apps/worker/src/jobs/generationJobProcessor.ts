@@ -17,6 +17,34 @@ export type GenerationResultPersister = {
     screenVersion: ScreenVersion;
     artifacts?: Artifact[];
   }>;
+  persistCompletedVariants?(input: CompletedVariantsResult): Promise<{
+    job: GenerationJob;
+    screenVersions: ScreenVersion[];
+    artifacts?: Artifact[];
+  }>;
+};
+
+export type CompletedVariantsResult = {
+  jobId: string;
+  projectId: string;
+  screenId: string;
+  prompt: string;
+  provider: string;
+  model: string;
+  baseVersionId: string | null;
+  variants: Array<{
+    designSpec: DesignSpec;
+    htmlCode: string;
+    reactCode: string | null;
+    screenshot: {
+      storageKey: string;
+      checksum: string;
+      mimeType: "image/png";
+      byteSize: number;
+      width: number;
+      height: number;
+    } | null;
+  }>;
 };
 
 export type CompletedGenerationResult = {
@@ -93,6 +121,18 @@ export function createGenerationJobProcessor({
 }: GenerationJobProcessorOptions): GenerationJobProcessor {
   return {
     async process(job) {
+      if (job.type === "generate_variants") {
+        return processVariants(job, {
+          provider,
+          persister,
+          artifactStore,
+          screenReader,
+          renderScreenshot,
+          providerName,
+          model,
+        });
+      }
+
       if (job.type !== "generate_screen" && job.type !== "edit_screen") {
         throw new GenerationProcessingError(
           "VALIDATION_ERROR",
@@ -247,6 +287,7 @@ async function renderScreenshotForJob(
   designSpec: DesignSpec,
   htmlCode: string,
   renderScreenshot: typeof renderHtmlScreenshot,
+  keySuffix?: string,
 ): Promise<RenderedScreenshotArtifact> {
   const screenshot = await renderScreenshot({
     html: htmlCode,
@@ -256,22 +297,146 @@ async function renderScreenshotForJob(
     },
   });
 
-  return screenshotToArtifactInput(job.id, screenshot);
+  return screenshotToArtifactInput(job.id, screenshot, keySuffix);
 }
 
 function screenshotToArtifactInput(
   jobId: string,
   screenshot: RenderHtmlScreenshotOutput,
+  keySuffix?: string,
 ): RenderedScreenshotArtifact {
+  const path = keySuffix ? `${keySuffix}/screenshot.png` : "screenshot.png";
   return {
     bytes: screenshot.bytes,
-    storageKey: `generation-jobs/${jobId}/screenshot.png`,
+    storageKey: `generation-jobs/${jobId}/${path}`,
     checksum: `sha256:${createHash("sha256").update(screenshot.bytes).digest("hex")}`,
     mimeType: screenshot.mimeType,
     byteSize: screenshot.bytes.byteLength,
     width: screenshot.width,
     height: screenshot.height,
   };
+}
+
+async function processVariants(
+  job: GenerationJob,
+  deps: Required<Pick<GenerationJobProcessorOptions, "provider" | "persister" | "artifactStore">> &
+    Pick<GenerationJobProcessorOptions, "screenReader"> & {
+      renderScreenshot: typeof renderHtmlScreenshot;
+      providerName: string;
+      model: string;
+    },
+): Promise<{ job: GenerationJob; screenVersion: ScreenVersion; artifacts?: Artifact[] }> {
+  const persistVariants = deps.persister.persistCompletedVariants;
+  if (!persistVariants) {
+    throw new GenerationProcessingError(
+      "CONFIGURATION_ERROR",
+      "generate_variants jobs require a variants persister",
+    );
+  }
+
+  const editContext = await resolveEditContext(job, deps.screenReader);
+  const count = clampVariantCount(job.variantCount);
+
+  const variants: CompletedVariantsResult["variants"] = [];
+  const uploadedKeys: string[] = [];
+
+  try {
+    for (let index = 0; index < count; index += 1) {
+      const output = await deps.provider.generateStructuredDesign({
+        type: "generate_variants",
+        projectId: job.projectId,
+        prompt: job.prompt,
+        deviceType: job.deviceType,
+        mode: job.mode,
+        screenId: editContext.screenId,
+        baseDesignSpec: editContext.baseDesignSpec,
+        variantIndex: index,
+      });
+      const parsed = DesignSpecSchema.safeParse(output.designSpec);
+      if (!parsed.success) {
+        throw new GenerationProcessingError(
+          "VALIDATION_ERROR",
+          "Generated DesignSpec failed validation",
+          parsed.error.issues,
+        );
+      }
+
+      const htmlCode = designSpecToHtml(parsed.data);
+      const screenshot = await renderScreenshotForJob(
+        job,
+        parsed.data,
+        htmlCode,
+        deps.renderScreenshot,
+        `variant-${index}`,
+      );
+
+      await deps.artifactStore.putObject({
+        key: screenshot.storageKey,
+        bytes: screenshot.bytes,
+        contentType: screenshot.mimeType,
+      });
+      uploadedKeys.push(screenshot.storageKey);
+
+      variants.push({
+        designSpec: parsed.data,
+        htmlCode,
+        reactCode: null,
+        screenshot: {
+          storageKey: screenshot.storageKey,
+          checksum: screenshot.checksum,
+          mimeType: screenshot.mimeType,
+          byteSize: screenshot.byteSize,
+          width: screenshot.width,
+          height: screenshot.height,
+        },
+      });
+    }
+  } catch (error) {
+    await cleanupUploaded(deps.artifactStore, uploadedKeys);
+    if (error instanceof GenerationProcessingError) throw error;
+    throw new GenerationProcessingError(
+      "ARTIFACT_STORAGE_ERROR",
+      "Failed to render or upload a generated variant",
+      serializeError(error),
+      true,
+    );
+  }
+
+  try {
+    const result = await persistVariants({
+      jobId: job.id,
+      projectId: job.projectId,
+      screenId: editContext.screenId,
+      prompt: job.prompt,
+      provider: deps.providerName,
+      model: deps.model,
+      baseVersionId: editContext.baseVersionId,
+      variants,
+    });
+    return { job: result.job, screenVersion: result.screenVersions[0], artifacts: result.artifacts };
+  } catch (error) {
+    await cleanupUploaded(deps.artifactStore, uploadedKeys);
+    throw new GenerationProcessingError(
+      "PERSISTENCE_ERROR",
+      "Failed to persist generated variants",
+      serializeError(error),
+      true,
+    );
+  }
+}
+
+function clampVariantCount(count: number | null | undefined): number {
+  if (typeof count !== "number" || Number.isNaN(count)) return 3;
+  return Math.max(2, Math.min(4, Math.floor(count)));
+}
+
+async function cleanupUploaded(
+  artifactStore: Pick<ArtifactObjectStore, "deleteObject">,
+  keys: string[],
+): Promise<void> {
+  await Promise.all(
+    keys.map((key) => artifactStore.deleteObject(key).catch(() => undefined)),
+  );
 }
 
 function serializeError(error: unknown): { name?: string; message: string } {

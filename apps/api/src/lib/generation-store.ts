@@ -87,7 +87,11 @@ export function createInMemoryGenerationJobRepository(): GenerationJobRepository
         prompt: input.prompt,
         deviceType: input.deviceType,
         mode: input.mode,
-        targetScreenId: input.type === "edit_screen" ? input.screenId : null,
+        targetScreenId:
+          input.type === "edit_screen" || input.type === "generate_variants"
+            ? input.screenId
+            : null,
+        variantCount: input.type === "generate_variants" ? input.count : null,
         result: null,
         error: null,
         createdAt: now,

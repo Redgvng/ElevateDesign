@@ -430,6 +430,7 @@ function serializeGenerationJob(row: typeof generationJobs.$inferSelect): Genera
     deviceType: row.deviceType,
     mode: row.mode,
     targetScreenId: extractTargetScreenId(row.request),
+    variantCount: extractVariantCount(row.request),
     result: row.result,
     error: row.error
       ? {
@@ -446,6 +447,13 @@ function serializeGenerationJob(row: typeof generationJobs.$inferSelect): Genera
 function extractTargetScreenId(request: Record<string, unknown> | null): string | null {
   if (request && typeof request === "object" && typeof request.screenId === "string") {
     return request.screenId;
+  }
+  return null;
+}
+
+function extractVariantCount(request: Record<string, unknown> | null): number | null {
+  if (request && typeof request === "object" && typeof request.count === "number") {
+    return request.count;
   }
   return null;
 }

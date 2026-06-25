@@ -130,6 +130,31 @@ export type CompletedGenerationInput = {
   };
 };
 
+export type VariantArtifactInput = {
+  designSpec: DesignSpec;
+  htmlCode: string;
+  reactCode: string | null;
+  screenshot: {
+    storageKey: string;
+    checksum: string;
+    mimeType: string;
+    byteSize: number;
+    width: number | null;
+    height: number | null;
+  } | null;
+};
+
+export type CompletedVariantsInput = {
+  jobId: string;
+  projectId: string;
+  screenId: string;
+  prompt: string;
+  provider: string;
+  model: string;
+  baseVersionId: string | null;
+  variants: VariantArtifactInput[];
+};
+
 export function createGenerationResultPersister(unitOfWork: GenerationUnitOfWork) {
   return {
     async persistCompletedGeneration(input: CompletedGenerationInput): Promise<{
@@ -227,6 +252,105 @@ export function createGenerationResultPersister(unitOfWork: GenerationUnitOfWork
         });
 
         return { job, screen, screenVersion, artifacts };
+      });
+    },
+
+    async persistCompletedVariants(input: CompletedVariantsInput): Promise<{
+      job: GenerationJob;
+      screen: Screen;
+      screenVersions: ScreenVersion[];
+      artifacts: Artifact[];
+    }> {
+      return unitOfWork.transaction(async (repositories) => {
+        const existingJob = await repositories.generationJobs.findByIdForUpdate(input.jobId);
+        if (!existingJob) {
+          throw new Error(`Generation job ${input.jobId} not found`);
+        }
+        if (existingJob.projectId !== input.projectId) {
+          throw new Error(`Generation job ${input.jobId} does not belong to project ${input.projectId}`);
+        }
+        if (existingJob.status === "completed") {
+          const loaded = await loadCompletedGeneration(repositories, existingJob);
+          return {
+            job: loaded.job,
+            screen: loaded.screen,
+            screenVersions: [loaded.screenVersion],
+            artifacts: loaded.artifacts,
+          };
+        }
+        if (existingJob.status !== "running") {
+          throw new Error(
+            `Generation job ${input.jobId} cannot complete from status ${existingJob.status}`,
+          );
+        }
+        if (input.variants.length === 0) {
+          throw new Error(`Variants job ${input.jobId} has no variants to persist`);
+        }
+
+        const baseScreen = await repositories.screens.findById(input.screenId);
+        if (!baseScreen) {
+          throw new Error(`Screen ${input.screenId} not found for variants job ${input.jobId}`);
+        }
+        if (baseScreen.projectId !== input.projectId) {
+          throw new Error(`Screen ${input.screenId} does not belong to project ${input.projectId}`);
+        }
+
+        const existingVersions = await repositories.screenVersions.listByScreen(baseScreen.id);
+        let nextVersionNumber =
+          existingVersions.reduce((max, version) => Math.max(max, version.versionNumber), 0) + 1;
+        const parentVersionId = input.baseVersionId ?? baseScreen.currentVersionId;
+
+        const screenVersions: ScreenVersion[] = [];
+        const artifacts: Artifact[] = [];
+
+        for (const variant of input.variants) {
+          const screenVersionId = `ver_${randomUUID()}`;
+          const screenshotArtifactId = variant.screenshot ? `artifact_${randomUUID()}` : null;
+
+          const screenVersion = await repositories.screenVersions.create({
+            id: screenVersionId,
+            screenId: baseScreen.id,
+            versionNumber: nextVersionNumber,
+            sourcePrompt: input.prompt,
+            operation: "variant",
+            designSpec: variant.designSpec,
+            htmlCode: variant.htmlCode,
+            reactCode: variant.reactCode,
+            screenshotArtifactId,
+            parentVersionId,
+            provider: input.provider,
+            model: input.model,
+          });
+          screenVersions.push(screenVersion);
+          nextVersionNumber += 1;
+
+          if (variant.screenshot) {
+            artifacts.push(
+              await repositories.artifacts.create({
+                id: screenshotArtifactId ?? undefined,
+                projectId: input.projectId,
+                screenVersionId: screenVersion.id,
+                type: "screenshot",
+                storageKey: variant.screenshot.storageKey,
+                checksum: variant.screenshot.checksum,
+                mimeType: variant.screenshot.mimeType,
+                byteSize: variant.screenshot.byteSize,
+                width: variant.screenshot.width,
+                height: variant.screenshot.height,
+                metadata: {},
+              }),
+            );
+          }
+        }
+
+        const primaryVersion = screenVersions[0];
+        const screen = await repositories.screens.setCurrentVersion(baseScreen.id, primaryVersion.id);
+        const job = await repositories.generationJobs.complete(input.jobId, {
+          screenId: screen.id,
+          screenVersionId: primaryVersion.id,
+        });
+
+        return { job, screen, screenVersions, artifacts };
       });
     },
   };
