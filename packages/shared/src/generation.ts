@@ -49,6 +49,7 @@ export const GenerationJobSchema = z.object({
   mode: GenerationModeSchema,
   targetScreenId: z.string().nullish(),
   variantCount: z.number().int().nullish(),
+  designContext: z.string().nullish(),
   result: z
     .object({
       screenId: z.string(),

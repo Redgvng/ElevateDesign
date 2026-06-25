@@ -68,7 +68,11 @@ function createPgGenerationRepositoriesFor(db: DatabaseLike): GenerationReposito
 
 function createPgGenerationJobRepository(db: DatabaseLike): GenerationJobRepository {
   return {
-    async createQueued(projectId: string, input: CreateGenerationJobInput) {
+    async createQueued(
+      projectId: string,
+      input: CreateGenerationJobInput,
+      options?: { designContext?: string | null },
+    ) {
       const now = new Date();
       const rows = await db
         .insert(generationJobs)
@@ -80,7 +84,7 @@ function createPgGenerationJobRepository(db: DatabaseLike): GenerationJobReposit
           prompt: input.prompt,
           deviceType: input.deviceType,
           mode: input.mode,
-          request: input,
+          request: { ...input, designContext: options?.designContext ?? null },
           result: null,
           error: null,
           createdAt: now,
@@ -431,6 +435,7 @@ function serializeGenerationJob(row: typeof generationJobs.$inferSelect): Genera
     mode: row.mode,
     targetScreenId: extractTargetScreenId(row.request),
     variantCount: extractVariantCount(row.request),
+    designContext: extractDesignContext(row.request),
     result: row.result,
     error: row.error
       ? {
@@ -454,6 +459,13 @@ function extractTargetScreenId(request: Record<string, unknown> | null): string 
 function extractVariantCount(request: Record<string, unknown> | null): number | null {
   if (request && typeof request === "object" && typeof request.count === "number") {
     return request.count;
+  }
+  return null;
+}
+
+function extractDesignContext(request: Record<string, unknown> | null): string | null {
+  if (request && typeof request === "object" && typeof request.designContext === "string") {
+    return request.designContext;
   }
   return null;
 }

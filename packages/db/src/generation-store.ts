@@ -23,8 +23,16 @@ export type GenerationJobFailure = {
   retryable?: boolean;
 };
 
+export type CreateQueuedOptions = {
+  designContext?: string | null;
+};
+
 export type GenerationJobRepository = {
-  createQueued(projectId: string, input: CreateGenerationJobInput): Promise<GenerationJob>;
+  createQueued(
+    projectId: string,
+    input: CreateGenerationJobInput,
+    options?: CreateQueuedOptions,
+  ): Promise<GenerationJob>;
   findById(jobId: string): Promise<GenerationJob | null>;
   findByIdForUpdate(jobId: string): Promise<GenerationJob | null>;
   listQueued(limit: number): Promise<GenerationJob[]>;

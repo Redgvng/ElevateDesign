@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { GenerationJobFailure, GenerationJobRepository } from "@odc/db";
-import type { CreateGenerationJobInput, GenerationJob } from "@odc/shared";
+import {
+  designSystemToPromptContext,
+  type CreateGenerationJobInput,
+  type GenerationJob,
+} from "@odc/shared";
+import type { DesignSystemStore } from "./design-system-store";
 import type { ProjectStore } from "./project-store";
 
 export type StoredGeneration = {
@@ -22,19 +27,25 @@ export type QueuedGenerationStoreOptions = {
   projectStore: ProjectStore;
   generationJobs: Pick<GenerationJobRepository, "createQueued" | "findById" | "cancel">;
   queue: GenerationQueue;
+  designSystemStore?: DesignSystemStore;
 };
 
 export function createQueuedGenerationStore({
   projectStore,
   generationJobs,
   queue,
+  designSystemStore,
 }: QueuedGenerationStoreOptions): GenerationStore {
   return {
     async createJob(projectId, input) {
       const project = await projectStore.getProject(projectId);
       if (!project) throw new GenerationProjectNotFoundError();
 
-      const job = await generationJobs.createQueued(projectId, input);
+      const designContext = designSystemStore
+        ? await resolveDesignContext(designSystemStore, project.id, project.defaultDesignSystemId)
+        : null;
+
+      const job = await generationJobs.createQueued(projectId, input, { designContext });
       await queue.enqueueGenerationJob(job.id);
       return { job };
     },
@@ -72,12 +83,28 @@ export function createQueuedGenerationStore({
   };
 }
 
+async function resolveDesignContext(
+  designSystemStore: DesignSystemStore,
+  projectId: string,
+  defaultDesignSystemId: string | null,
+): Promise<string | null> {
+  const systems = await designSystemStore.listByProject(projectId);
+  if (systems.length === 0) return null;
+
+  const selected =
+    (defaultDesignSystemId
+      ? systems.find((system) => system.id === defaultDesignSystemId)
+      : undefined) ?? systems[0];
+
+  return designSystemToPromptContext(selected);
+}
+
 export function createInMemoryGenerationJobRepository(): GenerationJobRepository {
   const jobs = new Map<string, GenerationJob>();
   const leaseExpiresAtByJobId = new Map<string, number>();
 
   return {
-    async createQueued(projectId, input) {
+    async createQueued(projectId, input, options) {
       const now = new Date().toISOString();
       const job: GenerationJob = {
         id: `job_${randomUUID()}`,
@@ -92,6 +119,7 @@ export function createInMemoryGenerationJobRepository(): GenerationJobRepository
             ? input.screenId
             : null,
         variantCount: input.type === "generate_variants" ? input.count : null,
+        designContext: options?.designContext ?? null,
         result: null,
         error: null,
         createdAt: now,

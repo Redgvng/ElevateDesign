@@ -151,6 +151,7 @@ export function createGenerationJobProcessor({
         mode: job.mode,
         screenId: editContext?.screenId,
         baseDesignSpec: editContext?.baseDesignSpec,
+        designContext: job.designContext,
       });
       const parsed = DesignSpecSchema.safeParse(output.designSpec);
 
@@ -351,6 +352,7 @@ async function processVariants(
         screenId: editContext.screenId,
         baseDesignSpec: editContext.baseDesignSpec,
         variantIndex: index,
+        designContext: job.designContext,
       });
       const parsed = DesignSpecSchema.safeParse(output.designSpec);
       if (!parsed.success) {

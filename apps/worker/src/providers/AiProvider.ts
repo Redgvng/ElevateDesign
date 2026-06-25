@@ -9,6 +9,7 @@ export type GenerateDesignInput = {
   screenId?: string;
   baseDesignSpec?: DesignSpec;
   variantIndex?: number;
+  designContext?: string | null;
 };
 
 export type GenerateDesignOutput = {

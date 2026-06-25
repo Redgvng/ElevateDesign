@@ -57,6 +57,7 @@ export function createApp(options: CreateAppOptions = {}) {
     projectStore: store,
     generationJobs: generationRepositories.generationJobs,
     queue: options.generationQueue ?? createConfiguredGenerationQueue(config.redisUrl),
+    designSystemStore,
   });
   const app = new Hono();
 
