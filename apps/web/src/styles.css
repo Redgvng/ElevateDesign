@@ -556,10 +556,72 @@ button:hover:not(:disabled) {
 
 .preview-column {
   display: grid;
-  grid-template-rows: 1fr auto;
+  grid-template-rows: 1fr auto auto;
   gap: 12px;
   min-width: 0;
   min-height: 0;
+  overflow: auto;
+}
+
+.design-system-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding-bottom: 8px;
+}
+
+.design-system-empty {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.design-system-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px 8px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ds-item {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ds-item.active {
+  border-color: var(--accent, #2563eb);
+  background: #f5f8ff;
+}
+
+.design-system-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px 0;
+}
+
+.design-system-editor textarea {
+  font: inherit;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px;
+  resize: vertical;
+}
+
+.design-system-error {
+  margin: 0;
+  padding: 0 12px;
+  color: #b91c1c;
+  font-size: 12px;
 }
 
 .version-history {

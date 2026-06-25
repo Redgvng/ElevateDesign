@@ -5,6 +5,7 @@ import { CanvasWorkspace } from "../canvas/CanvasWorkspace";
 import { createScreenCanvasNode } from "../canvas/canvasMapping";
 import { PreviewPanel } from "../preview/PreviewPanel";
 import { VersionHistory } from "../preview/VersionHistory";
+import { DesignSystemPanel } from "../design/DesignSystemPanel";
 
 type WorkspaceProps = {
   project: Project;
@@ -304,6 +305,7 @@ export function Workspace({ project, onBack }: WorkspaceProps) {
               setScreenVersion(version);
             }}
           />
+          <DesignSystemPanel projectId={project.id} />
         </div>
       </div>
     </main>
