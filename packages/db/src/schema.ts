@@ -12,7 +12,7 @@ import {
   uniqueIndex,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
-import type { CanvasDocument, DesignSpec } from "@odc/shared";
+import type { CanvasDocument, DesignSpec, DesignTokens } from "@odc/shared";
 
 export const workspaceMembershipRoleEnum = pgEnum("workspace_membership_role", [
   "owner",
@@ -117,6 +117,23 @@ export const projects = pgTable(
     uniqueIndex("projects_workspace_slug_unique").on(table.workspaceId, table.slug),
     index("projects_workspace_updated_idx").on(table.workspaceId, table.updatedAt),
   ],
+);
+
+export const designSystems = pgTable(
+  "design_systems",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description").notNull(),
+    tokens: jsonb("tokens").$type<DesignTokens>().notNull(),
+    designMarkdown: text("design_markdown").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("design_systems_project_idx").on(table.projectId, table.updatedAt)],
 );
 
 export const canvasDocuments = pgTable("canvas_documents", {
