@@ -4,6 +4,7 @@ import { ChatPanel } from "../chat/ChatPanel";
 import { CanvasWorkspace } from "../canvas/CanvasWorkspace";
 import { createScreenCanvasNode } from "../canvas/canvasMapping";
 import { PreviewPanel } from "../preview/PreviewPanel";
+import { VersionHistory } from "../preview/VersionHistory";
 
 type WorkspaceProps = {
   project: Project;
@@ -289,7 +290,17 @@ export function Workspace({ project, onBack }: WorkspaceProps) {
           onSelectNode={handleCanvasNodeSelect}
         />
 
-        <PreviewPanel job={job} screenVersion={screenVersion} />
+        <div className="preview-column">
+          <PreviewPanel job={job} screenVersion={screenVersion} />
+          <VersionHistory
+            screenId={screenVersion?.screenId ?? null}
+            activeVersionId={screenVersion?.id ?? null}
+            onRevert={(version) => {
+              rememberScreenVersion(version);
+              setScreenVersion(version);
+            }}
+          />
+        </div>
       </div>
     </main>
   );
