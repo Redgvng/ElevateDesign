@@ -7,7 +7,10 @@ type ChatPanelProps = {
   error: string | null;
   isCancelling: boolean;
   activeScreenId: string | null;
-  onSubmitPrompt: (prompt: string, editScreenId?: string | null) => Promise<void>;
+  onSubmitPrompt: (
+    prompt: string,
+    target?: { kind: "edit" | "variants"; screenId: string } | null,
+  ) => Promise<void>;
   onCancelJob: () => Promise<void>;
 };
 
@@ -22,9 +25,11 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const promptId = useId();
   const [prompt, setPrompt] = useState("");
-  const [mode, setMode] = useState<"generate" | "edit">("generate");
+  const [mode, setMode] = useState<"generate" | "edit" | "variants">("generate");
 
-  const isEditing = mode === "edit" && Boolean(activeScreenId);
+  const targetsScreen = mode !== "generate" && Boolean(activeScreenId);
+  const isEditing = mode === "edit" && targetsScreen;
+  const isVariants = mode === "variants" && targetsScreen;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -34,7 +39,11 @@ export function ChatPanel({
       return;
     }
 
-    await onSubmitPrompt(trimmedPrompt, isEditing ? activeScreenId : null);
+    const target =
+      targetsScreen && activeScreenId
+        ? { kind: mode === "edit" ? ("edit" as const) : ("variants" as const), screenId: activeScreenId }
+        : null;
+    await onSubmitPrompt(trimmedPrompt, target);
     setPrompt("");
   }
 
@@ -95,10 +104,21 @@ export function ChatPanel({
             >
               Edit current
             </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={mode === "variants"}
+              aria-pressed={mode === "variants"}
+              onClick={() => setMode("variants")}
+            >
+              Variants
+            </button>
           </div>
         ) : null}
 
-        <label htmlFor={promptId}>{isEditing ? "Edit prompt" : "Prompt"}</label>
+        <label htmlFor={promptId}>
+          {isEditing ? "Edit prompt" : isVariants ? "Variants prompt" : "Prompt"}
+        </label>
         <textarea
           id={promptId}
           rows={5}
@@ -107,7 +127,9 @@ export function ChatPanel({
           placeholder={
             isEditing
               ? "Tighten the spacing and add a sidebar"
-              : "Create a dense SaaS monitoring dashboard"
+              : isVariants
+                ? "Explore alternative layouts"
+                : "Create a dense SaaS monitoring dashboard"
           }
           disabled={isSubmitting}
         />
@@ -115,10 +137,14 @@ export function ChatPanel({
           {isSubmitting
             ? isEditing
               ? "Editing..."
-              : "Generating..."
+              : isVariants
+                ? "Generating variants..."
+                : "Generating..."
             : isEditing
               ? "Edit screen"
-              : "Generate screen"}
+              : isVariants
+                ? "Generate variants"
+                : "Generate screen"}
         </button>
       </form>
     </section>

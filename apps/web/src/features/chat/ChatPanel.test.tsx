@@ -99,7 +99,36 @@ describe("ChatPanel edit mode", () => {
     await user.type(screen.getByLabelText("Edit prompt"), "Tighten the spacing");
     await user.click(screen.getByRole("button", { name: "Edit screen" }));
 
-    expect(onSubmitPrompt).toHaveBeenCalledWith("Tighten the spacing", "screen_42");
+    expect(onSubmitPrompt).toHaveBeenCalledWith("Tighten the spacing", {
+      kind: "edit",
+      screenId: "screen_42",
+    });
+  });
+
+  it("submits a variants request for the active screen", async () => {
+    const user = userEvent.setup();
+    const onSubmitPrompt = vi.fn(async () => undefined);
+
+    render(
+      <ChatPanel
+        job={null}
+        isSubmitting={false}
+        isCancelling={false}
+        error={null}
+        activeScreenId="screen_42"
+        onSubmitPrompt={onSubmitPrompt}
+        onCancelJob={async () => undefined}
+      />,
+    );
+
+    await user.click(screen.getByRole("radio", { name: "Variants" }));
+    await user.type(screen.getByLabelText("Variants prompt"), "Explore layouts");
+    await user.click(screen.getByRole("button", { name: "Generate variants" }));
+
+    expect(onSubmitPrompt).toHaveBeenCalledWith("Explore layouts", {
+      kind: "variants",
+      screenId: "screen_42",
+    });
   });
 });
 

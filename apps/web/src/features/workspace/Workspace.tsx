@@ -75,12 +75,15 @@ export function Workspace({ project, onBack }: WorkspaceProps) {
     setScreenVersion(version);
   }
 
-  async function submitPrompt(prompt: string, editScreenId?: string | null) {
-    const isEditing = Boolean(editScreenId);
-    const optimisticJob = createOptimisticJob(project.id, prompt, editScreenId ?? null);
+  async function submitPrompt(
+    prompt: string,
+    target?: { kind: "edit" | "variants"; screenId: string } | null,
+  ) {
+    const targetsScreen = Boolean(target);
+    const optimisticJob = createOptimisticJob(project.id, prompt, target ?? null);
 
     setJob(optimisticJob);
-    if (!isEditing) {
+    if (!targetsScreen) {
       setScreenVersion(null);
     }
     setIsSubmitting(true);
@@ -93,29 +96,14 @@ export function Workspace({ project, onBack }: WorkspaceProps) {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(
-            isEditing
-              ? {
-                  type: "edit_screen",
-                  screenId: editScreenId,
-                  prompt,
-                  deviceType: "desktop",
-                  mode: "fast",
-                }
-              : {
-                  type: "generate_screen",
-                  prompt,
-                  deviceType: "desktop",
-                  mode: "fast",
-                },
-          ),
+          body: JSON.stringify(buildJobPayload(prompt, target ?? null)),
         },
       );
 
       const completedScreenVersion = await settleGeneration(created);
       if (completedScreenVersion) {
         rememberScreenVersion(completedScreenVersion);
-        if (!isEditing) {
+        if (!targetsScreen) {
           addScreenVersionToCanvas(completedScreenVersion);
         }
       }
@@ -359,22 +347,48 @@ type ApiErrorResponse = {
   };
 };
 
+function buildJobPayload(
+  prompt: string,
+  target: { kind: "edit" | "variants"; screenId: string } | null,
+): Record<string, unknown> {
+  if (target?.kind === "edit") {
+    return { type: "edit_screen", screenId: target.screenId, prompt, deviceType: "desktop", mode: "fast" };
+  }
+  if (target?.kind === "variants") {
+    return {
+      type: "generate_variants",
+      screenId: target.screenId,
+      prompt,
+      deviceType: "desktop",
+      mode: "fast",
+      count: 3,
+    };
+  }
+  return { type: "generate_screen", prompt, deviceType: "desktop", mode: "fast" };
+}
+
 function createOptimisticJob(
   projectId: string,
   prompt: string,
-  targetScreenId: string | null,
+  target: { kind: "edit" | "variants"; screenId: string } | null,
 ): GenerationJob {
   const now = new Date().toISOString();
+  const type =
+    target?.kind === "edit"
+      ? "edit_screen"
+      : target?.kind === "variants"
+        ? "generate_variants"
+        : "generate_screen";
 
   return {
     id: "pending",
     projectId,
-    type: targetScreenId ? "edit_screen" : "generate_screen",
+    type,
     status: "queued",
     prompt,
     deviceType: "desktop",
     mode: "fast",
-    targetScreenId,
+    targetScreenId: target?.screenId ?? null,
     result: null,
     error: null,
     createdAt: now,
