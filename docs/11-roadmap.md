@@ -120,17 +120,19 @@ Une génération et sa preview restent entièrement récupérables après redém
 
 ## Phase 4: versions et variantes
 
+Statut (2026-06-25): 4/5 livrables faits sur `codex/generation-persistence-queue`. Reste `generate_variants` (variantes parallèles), encore rejeté par le processor.
+
 Objectif:
 
 Permettre l'itération réelle.
 
 Livrables:
 
-- ScreenVersion;
-- édition par prompt;
-- retour version précédente;
-- variantes parallèles;
-- comparaison screenshots.
+- ScreenVersion ✅;
+- édition par prompt ✅ (job `edit_screen` end-to-end + mode édition dans le chat);
+- retour version précédente ✅ (`PUT /api/screens/:id/current-version` + panneau VersionHistory);
+- variantes parallèles ⏳ (`generate_variants` à implémenter);
+- comparaison screenshots ✅ (comparaison côte à côte dans VersionHistory).
 
 Critère de sortie:
 
