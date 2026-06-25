@@ -49,6 +49,22 @@ export function PreviewPanel({ job, screenVersion }: PreviewPanelProps) {
               </button>
             </div>
           ) : null}
+
+          {screenVersion ? (
+            <button
+              type="button"
+              className="preview-export-button"
+              onClick={() =>
+                downloadTextFile(
+                  htmlDownloadName(screenVersion.designSpec.title),
+                  screenVersion.htmlCode,
+                  "text/html",
+                )
+              }
+            >
+              Export HTML
+            </button>
+          ) : null}
         </div>
 
         {screenVersion ? (
@@ -82,4 +98,24 @@ export function PreviewPanel({ job, screenVersion }: PreviewPanelProps) {
 
 export function artifactContentUrl(artifactId: string): string {
   return `/api/artifacts/${encodeURIComponent(artifactId)}/content`;
+}
+
+export function htmlDownloadName(title: string): string {
+  const slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `${slug || "screen"}.html`;
+}
+
+function downloadTextFile(filename: string, content: string, mimeType: string): void {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 }

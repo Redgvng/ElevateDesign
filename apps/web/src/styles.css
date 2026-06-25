@@ -485,6 +485,22 @@ button:hover:not(:disabled) {
   background: #eef2f7;
 }
 
+.preview-export-button {
+  margin-left: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  background: #ffffff;
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.preview-export-button:hover {
+  background: #eef2f7;
+}
+
 .chat-mode-switch {
   display: inline-flex;
   gap: 2px;

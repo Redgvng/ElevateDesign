@@ -1,8 +1,8 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ScreenVersion } from "@odc/shared";
-import { PreviewPanel, artifactContentUrl } from "./PreviewPanel";
+import { PreviewPanel, artifactContentUrl, htmlDownloadName } from "./PreviewPanel";
 
 afterEach(() => cleanup());
 
@@ -41,6 +41,28 @@ describe("PreviewPanel", () => {
     expect(artifactContentUrl("artifact with/slash")).toBe(
       "/api/artifacts/artifact%20with%2Fslash/content",
     );
+  });
+
+  it("derives a safe html download filename from the title", () => {
+    expect(htmlDownloadName("Operations Dashboard")).toBe("operations-dashboard.html");
+    expect(htmlDownloadName("  !!! ")).toBe("screen.html");
+  });
+
+  it("downloads the standalone HTML when Export HTML is clicked", async () => {
+    const user = userEvent.setup();
+    const createObjectURL = vi.fn(() => "blob:mock");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", { ...URL, createObjectURL, revokeObjectURL });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    render(<PreviewPanel job={null} screenVersion={screenVersion} />);
+    await user.click(screen.getByRole("button", { name: "Export HTML" }));
+
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    expect(clickSpy).toHaveBeenCalledOnce();
+
+    clickSpy.mockRestore();
+    vi.unstubAllGlobals();
   });
 });
 
