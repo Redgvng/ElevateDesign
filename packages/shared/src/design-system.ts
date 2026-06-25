@@ -36,14 +36,19 @@ export const DesignTokensSchema = z.object({
   spacing: DesignSpacingTokensSchema,
 });
 
-export const DesignSystemSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1).max(120),
-  description: z.string().min(1).max(500),
+export const DesignSystemInputSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  description: z.string().trim().min(1).max(500),
   tokens: DesignTokensSchema,
   /** Free-form DESIGN.md guidance injected into generation prompts. */
-  designMarkdown: z.string().max(8000),
+  designMarkdown: z.string().max(8000).default(""),
 });
+
+export const DesignSystemSchema = DesignSystemInputSchema.extend({
+  id: z.string().min(1),
+});
+
+export type DesignSystemInput = z.infer<typeof DesignSystemInputSchema>;
 
 export type DesignColorTokens = z.infer<typeof DesignColorTokensSchema>;
 export type DesignTypographyTokens = z.infer<typeof DesignTypographyTokensSchema>;

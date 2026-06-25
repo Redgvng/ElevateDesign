@@ -8,6 +8,8 @@ import {
   type GenerationQueue,
 } from "./lib/generation-store";
 import { createConfiguredArtifactObjectStore } from "./lib/artifact-object-store";
+import { createInMemoryDesignSystemStore, type DesignSystemStore } from "./lib/design-system-store";
+import { createPgDesignSystemStore } from "./lib/pg-design-system-store";
 import { createConfiguredGenerationQueue } from "./lib/generation-queue";
 import { createPgGenerationRepositories } from "./lib/pg-generation-repositories";
 import { createPgProjectStore } from "./lib/pg-project-store";
@@ -15,6 +17,7 @@ import { createInMemoryProjectStore } from "./lib/project-store";
 import { checkReadiness } from "./lib/readiness";
 import { createArtifactsRouter } from "./routes/artifacts";
 import { createCanvasRouter } from "./routes/canvas";
+import { createDesignSystemsRouter } from "./routes/design-systems";
 import { createGenerationJobsRouter } from "./routes/generation-jobs";
 import { createProjectsRouter } from "./routes/projects";
 import { createScreensRouter } from "./routes/screens";
@@ -24,6 +27,7 @@ export type CreateAppOptions = {
   generationQueue?: GenerationQueue;
   generationRepositories?: GenerationRepositories;
   artifactObjectStore?: ArtifactObjectStore | null;
+  designSystemStore?: DesignSystemStore;
 };
 
 export function createApp(options: CreateAppOptions = {}) {
@@ -44,6 +48,11 @@ export function createApp(options: CreateAppOptions = {}) {
     options.artifactObjectStore === undefined
       ? createConfiguredArtifactObjectStore(config)
       : options.artifactObjectStore;
+  const designSystemStore =
+    options.designSystemStore ??
+    (config.databaseUrl
+      ? createPgDesignSystemStore(config.databaseUrl)
+      : createInMemoryDesignSystemStore());
   const generationStore = createQueuedGenerationStore({
     projectStore: store,
     generationJobs: generationRepositories.generationJobs,
@@ -68,6 +77,7 @@ export function createApp(options: CreateAppOptions = {}) {
   });
   app.route("/api/projects", createProjectsRouter(store));
   app.route("/api/projects", createCanvasRouter(store));
+  app.route("/", createDesignSystemsRouter(store, designSystemStore));
   app.route("/", createGenerationJobsRouter(generationStore));
   app.route("/", createScreensRouter(store, generationRepositories));
   app.route(
