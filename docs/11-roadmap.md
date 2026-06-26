@@ -204,6 +204,8 @@ Un écran peut être téléchargé et lancé dans un projet Vite neuf.
 
 ## Phase 7: V2 agentique
 
+Statut (2026-06-26): runtime Eve livré (`eve info` ready). app `apps/agent-runtime` avec agent + instructions + 6 tools idempotents + 3 skills + channel HTTP + 4 subagents (planner/generator/critic/exporter) + 2 evals; routage des jobs vers Eve derrière feature flag `EVE_GENERATION_ENABLED`. Reste (hors MVP, nécessite creds AI gateway): MCP de connaissance interne, persistance sessionId/continuationToken + mapping events→statuts, critique visuelle multimodale, réparation auto en boucle.
+
 Objectif:
 
 Ajouter le runtime agentique Eve et le MCP de connaissance interne sans déplacer la source de vérité produit.
