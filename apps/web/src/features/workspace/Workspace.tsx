@@ -296,7 +296,7 @@ export function Workspace({ project, onBack }: WorkspaceProps) {
         />
 
         <div className="preview-column">
-          <PreviewPanel job={job} screenVersion={screenVersion} />
+          <PreviewPanel job={job} screenVersion={screenVersion} projectId={project.id} />
           <VersionHistory
             screenId={screenVersion?.screenId ?? null}
             activeVersionId={screenVersion?.id ?? null}

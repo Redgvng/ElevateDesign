@@ -9,7 +9,7 @@ afterEach(() => cleanup());
 describe("PreviewPanel", () => {
   it("keeps live HTML as the default and switches to the persisted screenshot", async () => {
     const user = userEvent.setup();
-    render(<PreviewPanel job={null} screenVersion={screenVersion} />);
+    render(<PreviewPanel job={null} screenVersion={screenVersion} projectId="p1" />);
 
     expect(screen.getByTitle("Generated screen preview")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Live HTML" }).getAttribute("aria-pressed")).toBe(
@@ -30,11 +30,34 @@ describe("PreviewPanel", () => {
       <PreviewPanel
         job={null}
         screenVersion={{ ...screenVersion, screenshotArtifactId: null }}
+        projectId="p1"
       />,
     );
 
     expect(screen.queryByRole("button", { name: "Snapshot" })).toBeNull();
     expect(screen.getByTitle("Generated screen preview")).toBeTruthy();
+  });
+
+  it("creates a public share link and shows the copied URL", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 201,
+      json: async () => ({ shareLink: { url: "/api/public/s/shr_abc" } }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("navigator", { clipboard: { writeText: vi.fn(async () => undefined) } });
+
+    render(<PreviewPanel job={null} screenVersion={screenVersion} projectId="p1" />);
+    await user.click(screen.getByRole("button", { name: "Share" }));
+
+    await screen.findByText(/\/api\/public\/s\/shr_abc/);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/projects/p1/screen-versions/ver_1/share",
+      expect.objectContaining({ method: "POST" }),
+    );
+
+    vi.unstubAllGlobals();
   });
 
   it("encodes artifact ids in content URLs", () => {
@@ -55,7 +78,7 @@ describe("PreviewPanel", () => {
     vi.stubGlobal("URL", { ...URL, createObjectURL, revokeObjectURL });
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
 
-    render(<PreviewPanel job={null} screenVersion={screenVersion} />);
+    render(<PreviewPanel job={null} screenVersion={screenVersion} projectId="p1" />);
     await user.click(screen.getByRole("button", { name: "Export HTML" }));
 
     expect(createObjectURL).toHaveBeenCalledOnce();

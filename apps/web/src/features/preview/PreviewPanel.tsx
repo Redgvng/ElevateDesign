@@ -6,17 +6,40 @@ import { buildViteProjectZip, viteProjectZipName } from "../../lib/viteProjectEx
 type PreviewPanelProps = {
   job: GenerationJob | null;
   screenVersion: ScreenVersion | null;
+  projectId: string;
 };
 
 type PreviewMode = "html" | "snapshot";
 
-export function PreviewPanel({ job, screenVersion }: PreviewPanelProps) {
+export function PreviewPanel({ job, screenVersion, projectId }: PreviewPanelProps) {
   const [mode, setMode] = useState<PreviewMode>("html");
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
   const screenshotArtifactId = screenVersion?.screenshotArtifactId ?? null;
 
   useEffect(() => {
     setMode("html");
+    setShareUrl(null);
   }, [screenVersion?.id]);
+
+  async function shareVersion(versionId: string) {
+    setIsSharing(true);
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/screen-versions/${versionId}/share`,
+        { method: "POST" },
+      );
+      if (!response.ok) throw new Error("share failed");
+      const { shareLink } = (await response.json()) as { shareLink: { url: string } };
+      const absolute = new URL(shareLink.url, window.location.origin).toString();
+      setShareUrl(absolute);
+      await navigator.clipboard?.writeText(absolute).catch(() => undefined);
+    } catch {
+      setShareUrl(null);
+    } finally {
+      setIsSharing(false);
+    }
+  }
 
   return (
     <section className="workspace-panel preview-panel" aria-label="Preview">
@@ -91,9 +114,26 @@ export function PreviewPanel({ job, screenVersion }: PreviewPanelProps) {
               >
                 Export project
               </button>
+              <button
+                type="button"
+                className="preview-export-button"
+                disabled={isSharing}
+                onClick={() => void shareVersion(screenVersion.id)}
+              >
+                {isSharing ? "Sharing…" : "Share"}
+              </button>
             </div>
           ) : null}
         </div>
+
+        {shareUrl ? (
+          <div className="preview-share-bar">
+            <span>Public link (copied):</span>
+            <a href={shareUrl} target="_blank" rel="noreferrer noopener">
+              {shareUrl}
+            </a>
+          </div>
+        ) : null}
 
         {screenVersion ? (
           mode === "snapshot" && screenshotArtifactId ? (

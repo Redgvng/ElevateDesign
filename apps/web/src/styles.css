@@ -506,6 +506,24 @@ button:hover:not(:disabled) {
   background: #eef2f7;
 }
 
+.preview-share-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  border-top: 1px solid var(--border);
+  background: #f5f8ff;
+  overflow: hidden;
+}
+
+.preview-share-bar a {
+  color: var(--accent, #2563eb);
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
 .chat-mode-switch {
   display: inline-flex;
   gap: 2px;
