@@ -36,8 +36,8 @@ describe("designSpecToReact", () => {
     const code = designSpecToReact(spec);
     expect(code).toContain("export default function GeneratedScreen()");
     expect(code).toContain("<main className=");
-    expect(code).toContain("md:grid-cols-3");
-    expect(code).toContain("<h1");
+    expect(code).toContain("bg-slate-50");
+    expect(code).toContain('<h1 className="m-0 text-4xl font-bold');
   });
 
   it("escapes text content safely via JSON for JSX", () => {
