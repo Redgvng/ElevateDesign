@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "agent",
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["agent/**/*.ts"]
+}
