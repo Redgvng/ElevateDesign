@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { GenerationJob, ScreenVersion } from "@odc/shared";
 import { designSpecToReact, reactDownloadName } from "../../lib/designSpecToReact";
 import { buildViteProjectZip, viteProjectZipName } from "../../lib/viteProjectExport";
+import { buildScreenPptxBlob, pptxDownloadName } from "../../lib/pptx-export";
 
 type PreviewPanelProps = {
   job: GenerationJob | null;
@@ -117,6 +118,24 @@ export function PreviewPanel({ job, screenVersion, projectId }: PreviewPanelProp
               <button
                 type="button"
                 className="preview-export-button"
+                onClick={() => {
+                  const title = screenVersion.designSpec.title;
+                  void (async () => {
+                    const imageDataUrl = screenshotArtifactId
+                      ? await loadImageDataUrl(artifactContentUrl(screenshotArtifactId)).catch(
+                          () => undefined,
+                        )
+                      : undefined;
+                    const blob = await buildScreenPptxBlob({ title, imageDataUrl });
+                    downloadBlob(pptxDownloadName(title), blob);
+                  })();
+                }}
+              >
+                Export PPTX
+              </button>
+              <button
+                type="button"
+                className="preview-export-button"
                 disabled={isSharing}
                 onClick={() => void shareVersion(screenVersion.id)}
               >
@@ -178,6 +197,17 @@ export function htmlDownloadName(title: string): string {
 
 function downloadTextFile(filename: string, content: string, mimeType: string): void {
   downloadBlob(filename, new Blob([content], { type: mimeType }));
+}
+
+async function loadImageDataUrl(url: string): Promise<string> {
+  const response = await fetch(url);
+  const blob = await response.blob();
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("Could not read image"));
+    reader.readAsDataURL(blob);
+  });
 }
 
 function downloadBlob(filename: string, blob: Blob): void {
