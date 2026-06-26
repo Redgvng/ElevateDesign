@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { font: 12px Inter, system-ui, sans-serif; margin: 12px; color: #111827; }
+      label { display: block; margin: 8px 0 2px; font-weight: 600; }
+      input { width: 100%; padding: 6px; border: 1px solid #d8dde6; border-radius: 4px; }
+      button { margin-top: 12px; padding: 8px 12px; border: 0; border-radius: 4px; background: #2563eb; color: #fff; cursor: pointer; }
+      #status { margin-top: 10px; color: #6b7280; }
+    </style>
+  </head>
+  <body>
+    <form id="import-form">
+      <label for="baseUrl">API base URL</label>
+      <input id="baseUrl" name="baseUrl" value="http://127.0.0.1:3000" />
+      <label for="screenVersionId">Screen version id</label>
+      <input id="screenVersionId" name="screenVersionId" placeholder="ver_…" />
+      <button type="submit">Import into Figma</button>
+    </form>
+    <p id="status"></p>
+    <script src="dist/ui.js"></script>
+  </body>
+</html>

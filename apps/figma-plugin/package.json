@@ -1,0 +1,19 @@
+{
+  "name": "@odc/figma-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@odc/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.100.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.14"
+  }
+}

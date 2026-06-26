@@ -1,0 +1,12 @@
+{
+  "name": "Open Design Canvas",
+  "id": "open-design-canvas",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "editorType": ["figma"],
+  "networkAccess": {
+    "allowedDomains": ["*"],
+    "reasoning": "Fetches generated screen versions from the Open Design Canvas API."
+  }
+}

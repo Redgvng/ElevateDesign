@@ -83,6 +83,22 @@ importers:
         specifier: ^4.0.14
         version: 4.1.9(@types/node@24.13.2)(jsdom@27.4.0)(vite@8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(jiti@1.21.7)(tsx@4.22.4))
 
+  apps/figma-plugin:
+    dependencies:
+      '@odc/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+    devDependencies:
+      '@figma/plugin-typings':
+        specifier: ^1.100.2
+        version: 1.130.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.14
+        version: 4.1.9(@types/node@24.13.2)(jsdom@27.4.0)(vite@8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(jiti@1.21.7)(tsx@4.22.4))
+
   apps/web:
     dependencies:
       '@excalidraw/excalidraw':
@@ -808,6 +824,9 @@ packages:
     peerDependenciesMeta:
       '@noble/hashes':
         optional: true
+
+  '@figma/plugin-typings@1.130.0':
+    resolution: {integrity: sha512-kz+eU4TXBr99YrMyF2/WtcsdS6K4Ksy3datZZtuCUUSDPRknJAVLZpjhBESCd0tCtHRWKeo4l/I7Aze6lHB52A==}
 
   '@floating-ui/core@1.7.5':
     resolution: {integrity: sha512-1Ih4WTWyw0+lKyFMcBHGbb5U5FtuHJuujoyyr5zTaWS5EYMeT6Jb2AuDeftsCsEuchO+mM2ij5+q9crhydzLhQ==}
@@ -4587,6 +4606,8 @@ snapshots:
   '@excalidraw/random-username@1.1.0': {}
 
   '@exodus/bytes@1.15.1': {}
+
+  '@figma/plugin-typings@1.130.0': {}
 
   '@floating-ui/core@1.7.5':
     dependencies:
