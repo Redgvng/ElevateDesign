@@ -5,4 +5,5 @@ export * from "./design-spec";
 export * from "./generation";
 export * from "./module-catalog";
 export * from "./default-module-catalog";
+export * from "./screen-plan";
 export * from "./design-system";

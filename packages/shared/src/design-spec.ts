@@ -113,6 +113,8 @@ export const DesignSpecSchema = z.object({
   themeRefs: z.object({
     designSystemId: z.string().nullable(),
   }),
+  /** Optional trace of UI module ids that informed this composition (Phase 4.5). */
+  moduleRefs: z.array(z.string()).optional(),
   root: DesignNodeSchema,
   interactions: z.array(z.unknown()),
   assets: z.array(z.unknown()),

@@ -1,4 +1,9 @@
-import { DefaultModuleCatalog, type DeviceType, type ModuleDefinition } from "@odc/shared";
+import {
+  DefaultModuleCatalog,
+  type DeviceType,
+  type ModuleDefinition,
+  type ScreenPlan,
+} from "@odc/shared";
 
 export type ModuleCandidate = {
   module: ModuleDefinition;
@@ -6,6 +11,21 @@ export type ModuleCandidate = {
   matchedSignals: string[];
   selectedVariantId: string;
 };
+
+/** Builds a traceable ScreenPlan from the deterministic module selection. */
+export function buildScreenPlan(input: SelectModuleCandidatesInput): ScreenPlan {
+  const candidates = selectModuleCandidates(input);
+  return {
+    prompt: input.prompt,
+    deviceType: input.deviceType,
+    modules: candidates.map((candidate) => ({
+      moduleId: candidate.module.id,
+      variantId: candidate.selectedVariantId,
+      score: candidate.score,
+      matchedSignals: candidate.matchedSignals,
+    })),
+  };
+}
 
 export type SelectModuleCandidatesInput = {
   prompt: string;

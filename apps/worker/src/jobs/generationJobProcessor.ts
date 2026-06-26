@@ -3,13 +3,26 @@ import {
   DesignSpecSchema,
   type Artifact,
   type DesignSpec,
+  type DeviceType,
   type GenerationJob,
   type ScreenVersion,
 } from "@odc/shared";
 import { designSpecToHtml } from "../compiler/designSpecToHtml";
+import { buildScreenPlan } from "../modules/selectModules";
 import type { AiProvider } from "../providers/AiProvider";
 import { renderHtmlScreenshot, type RenderHtmlScreenshotOutput } from "../render/renderHtmlScreenshot";
 import type { ArtifactObjectStore } from "../storage/objectStore";
+
+/** Annotates a DesignSpec with the traceable module ids selected for the prompt. */
+function annotateModuleRefs(
+  designSpec: DesignSpec,
+  prompt: string,
+  deviceType: DeviceType,
+): DesignSpec {
+  const plan = buildScreenPlan({ prompt, deviceType });
+  if (plan.modules.length === 0) return designSpec;
+  return { ...designSpec, moduleRefs: plan.modules.map((module) => module.moduleId) };
+}
 
 export type GenerationResultPersister = {
   persistCompletedGeneration(input: CompletedGenerationResult): Promise<{
@@ -163,8 +176,9 @@ export function createGenerationJobProcessor({
         );
       }
 
-      const htmlCode = designSpecToHtml(parsed.data);
-      const screenshot = await renderScreenshotForJob(job, parsed.data, htmlCode, renderScreenshot);
+      const designSpec = annotateModuleRefs(parsed.data, job.prompt, job.deviceType);
+      const htmlCode = designSpecToHtml(designSpec);
+      const screenshot = await renderScreenshotForJob(job, designSpec, htmlCode, renderScreenshot);
 
       try {
         await artifactStore.putObject({
@@ -189,7 +203,7 @@ export function createGenerationJobProcessor({
           deviceType: job.deviceType,
           provider: providerName,
           model,
-          designSpec: parsed.data,
+          designSpec,
           htmlCode,
           reactCode: null,
           screenshot: {
@@ -363,10 +377,11 @@ async function processVariants(
         );
       }
 
-      const htmlCode = designSpecToHtml(parsed.data);
+      const designSpec = annotateModuleRefs(parsed.data, job.prompt, job.deviceType);
+      const htmlCode = designSpecToHtml(designSpec);
       const screenshot = await renderScreenshotForJob(
         job,
-        parsed.data,
+        designSpec,
         htmlCode,
         deps.renderScreenshot,
         `variant-${index}`,
@@ -380,7 +395,7 @@ async function processVariants(
       uploadedKeys.push(screenshot.storageKey);
 
       variants.push({
-        designSpec: parsed.data,
+        designSpec,
         htmlCode,
         reactCode: null,
         screenshot: {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectModuleCandidates } from "./selectModules";
+import { buildScreenPlan, selectModuleCandidates } from "./selectModules";
 
 describe("selectModuleCandidates", () => {
   it("selects dashboard-oriented modules for monitoring prompts", () => {
@@ -76,5 +76,27 @@ describe("selectModuleCandidates", () => {
     expect(commandCenter?.selectedVariantId).toBe("incident-command");
     expect(executive?.selectedVariantId).toBe("executive-story");
     expect(inspector?.selectedVariantId).toBe("inspector-workbench");
+  });
+});
+
+describe("buildScreenPlan", () => {
+  it("produces a traceable plan mirroring the selected candidates", () => {
+    const input = {
+      prompt: "Create a dense SaaS monitoring dashboard with metrics and a filtered incidents table",
+      deviceType: "desktop" as const,
+      maxModules: 4,
+    };
+    const plan = buildScreenPlan(input);
+    const candidates = selectModuleCandidates(input);
+
+    expect(plan.prompt).toBe(input.prompt);
+    expect(plan.deviceType).toBe("desktop");
+    expect(plan.modules.map((module) => module.moduleId)).toEqual(
+      candidates.map((candidate) => candidate.module.id),
+    );
+    expect(plan.modules[0]).toMatchObject({
+      variantId: candidates[0].selectedVariantId,
+      score: candidates[0].score,
+    });
   });
 });
