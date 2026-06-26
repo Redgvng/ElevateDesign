@@ -140,18 +140,20 @@ Un écran peut avoir plusieurs versions et variantes sélectionnables.
 
 ## Phase 4.5: bibliothèque de modules UI
 
+Statut (2026-06-26): **complète** sur `codex/generation-persistence-queue`. La sélection de modules est désormais câblée dans la génération et tracée (moduleRefs + ScreenPlan).
+
 Objectif:
 
 Diversifier les générations avec un catalogue de modules UI validé, DesignSpec-first et compatible shadcn pour les futurs exports React/Tailwind.
 
 Livrables:
 
-- contrats Zod `ModuleDefinition`, `ModuleVariant`, `ModuleSlot`;
-- catalogue MVP data-only pour dashboards, tables, forms, auth, pricing, settings et feedback;
-- sélection déterministe de modules candidats par prompt et device;
-- `ScreenPlan` intermédiaire pour tracer les choix de composition;
-- métadonnées optionnelles `moduleRefs` dans `DesignSpec`;
-- règles documentées empêchant shadcn ou JSX de devenir la source canonique.
+- contrats Zod `ModuleDefinition`, `ModuleVariant`, `ModuleSlot` ✅;
+- catalogue MVP data-only pour dashboards, tables, forms, auth, pricing, settings et feedback ✅;
+- sélection déterministe de modules candidats par prompt et device ✅ (`selectModuleCandidates`);
+- `ScreenPlan` intermédiaire pour tracer les choix de composition ✅ (`buildScreenPlan`);
+- métadonnées optionnelles `moduleRefs` dans `DesignSpec` ✅ (annotées par le processor);
+- règles documentées empêchant shadcn ou JSX de devenir la source canonique ✅ (DesignSpec reste la source; ScreenPlan/modules sont une trace).
 
 Plan:
 
