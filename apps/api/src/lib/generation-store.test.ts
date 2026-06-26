@@ -75,6 +75,52 @@ describe("createQueuedGenerationStore", () => {
     expect(enqueuedJobIds).toEqual(["job_queued"]);
   });
 
+  it("dispatches to Eve instead of the legacy queue when an eve dispatcher is set", async () => {
+    const enqueuedJobIds: string[] = [];
+    const dispatchedJobIds: string[] = [];
+    const generationJobs = createRepositoryStub({
+      createQueued: async (projectId, jobInput) => ({
+        id: "job_eve",
+        projectId,
+        type: jobInput.type,
+        status: "queued",
+        prompt: jobInput.prompt,
+        deviceType: jobInput.deviceType,
+        mode: jobInput.mode,
+        result: null,
+        error: null,
+        createdAt: now,
+        updatedAt: now,
+      }),
+    });
+    const store = createQueuedGenerationStore({
+      projectStore: {
+        createProject: async () => project,
+        listProjects: async () => [project],
+        getProject: async () => project,
+        getCanvas: async () => null,
+        updateCanvas: async () => null,
+      },
+      generationJobs,
+      queue: {
+        enqueueGenerationJob: async (jobId) => {
+          enqueuedJobIds.push(jobId);
+        },
+        removeGenerationJob: async () => false,
+      },
+      eveDispatcher: {
+        dispatch: async (job) => {
+          dispatchedJobIds.push(job.id);
+        },
+      },
+    });
+
+    await store.createJob(project.id, input);
+
+    expect(dispatchedJobIds).toEqual(["job_eve"]);
+    expect(enqueuedJobIds).toEqual([]);
+  });
+
   it("does not expose a job whose project is outside the current workspace", async () => {
     const generationJob = await createRepositoryStub({
       findById: async () => ({

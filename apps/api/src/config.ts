@@ -45,6 +45,10 @@ export const AppConfigSchema = z
       anthropicApiKey: OptionalStringSchema,
       anthropicModel: OptionalStringSchema,
     }),
+    eveGeneration: z.object({
+      enabled: z.boolean(),
+      dispatchUrl: OptionalUrlSchema,
+    }),
     corsOrigins: z.array(z.string().url()).min(1),
   })
   .superRefine((config, context) => {
@@ -148,6 +152,10 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
       openAiModel: environment.OPENAI_MODEL,
       anthropicApiKey: environment.ANTHROPIC_API_KEY,
       anthropicModel: environment.ANTHROPIC_MODEL,
+    },
+    eveGeneration: {
+      enabled: BooleanFromEnvironmentSchema.parse(environment.EVE_GENERATION_ENABLED ?? "false"),
+      dispatchUrl: environment.EVE_DISPATCH_URL,
     },
     corsOrigins,
   });

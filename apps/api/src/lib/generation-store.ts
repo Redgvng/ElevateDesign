@@ -6,6 +6,7 @@ import {
   type GenerationJob,
 } from "@odc/shared";
 import type { DesignSystemStore } from "./design-system-store";
+import type { EveGenerationDispatcher } from "./eve-dispatch";
 import type { ProjectStore } from "./project-store";
 
 export type StoredGeneration = {
@@ -28,6 +29,8 @@ export type QueuedGenerationStoreOptions = {
   generationJobs: Pick<GenerationJobRepository, "createQueued" | "findById" | "cancel">;
   queue: GenerationQueue;
   designSystemStore?: DesignSystemStore;
+  /** When set, queued jobs are dispatched to Eve instead of the legacy queue. */
+  eveDispatcher?: EveGenerationDispatcher;
 };
 
 export function createQueuedGenerationStore({
@@ -35,6 +38,7 @@ export function createQueuedGenerationStore({
   generationJobs,
   queue,
   designSystemStore,
+  eveDispatcher,
 }: QueuedGenerationStoreOptions): GenerationStore {
   return {
     async createJob(projectId, input) {
@@ -46,7 +50,12 @@ export function createQueuedGenerationStore({
         : null;
 
       const job = await generationJobs.createQueued(projectId, input, { designContext });
-      await queue.enqueueGenerationJob(job.id);
+
+      if (eveDispatcher) {
+        await eveDispatcher.dispatch(job);
+      } else {
+        await queue.enqueueGenerationJob(job.id);
+      }
       return { job };
     },
 

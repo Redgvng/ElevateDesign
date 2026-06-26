@@ -49,7 +49,7 @@ function persisterWith(spy: ReturnType<typeof vi.fn>): AuthoredScreenVersionPers
 
 describe("authored screen versions route", () => {
   it("compiles HTML and persists an authored spec", async () => {
-    const spy = vi.fn(async () => ({
+    const spy = vi.fn(async (_input: { projectId: string; htmlCode: string; provider: string }) => ({
       screen: { id: "screen_1" },
       screenVersion: { id: "ver_1", versionNumber: 1 },
     }));
@@ -62,7 +62,7 @@ describe("authored screen versions route", () => {
     });
 
     expect(response.status).toBe(201);
-    const call = spy.mock.calls[0][0];
+    const call = spy.mock.calls[0]![0];
     expect(call.projectId).toBe("p1");
     expect(call.htmlCode).toContain("<!doctype html>");
     expect(call.provider).toBe("eve");

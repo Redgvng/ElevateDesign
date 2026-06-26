@@ -4,6 +4,7 @@ import {
   createGenerationResultPersister,
   type ArtifactObjectStore,
   type GenerationRepositories,
+  type GenerationUnitOfWork,
 } from "@odc/db";
 import { loadConfig, type AppConfig } from "./config";
 import {
@@ -15,6 +16,7 @@ import { createConfiguredArtifactObjectStore } from "./lib/artifact-object-store
 import { createInMemoryDesignSystemStore, type DesignSystemStore } from "./lib/design-system-store";
 import { createPgDesignSystemStore } from "./lib/pg-design-system-store";
 import { createConfiguredGenerationQueue } from "./lib/generation-queue";
+import { createHttpEveGenerationDispatcher } from "./lib/eve-dispatch";
 import { createPgGenerationRepositories } from "./lib/pg-generation-repositories";
 import { createPgProjectStore } from "./lib/pg-project-store";
 import { createInMemoryProjectStore } from "./lib/project-store";
@@ -58,11 +60,16 @@ export function createApp(options: CreateAppOptions = {}) {
     (config.databaseUrl
       ? createPgDesignSystemStore(config.databaseUrl)
       : createInMemoryDesignSystemStore());
+  const eveDispatcher =
+    config.eveGeneration.enabled && config.eveGeneration.dispatchUrl
+      ? createHttpEveGenerationDispatcher(config.eveGeneration.dispatchUrl)
+      : undefined;
   const generationStore = createQueuedGenerationStore({
     projectStore: store,
     generationJobs: generationRepositories.generationJobs,
     queue: options.generationQueue ?? createConfiguredGenerationQueue(config.redisUrl),
     designSystemStore,
+    eveDispatcher,
   });
   const app = new Hono();
 
@@ -84,14 +91,16 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route("/api/projects", createProjectsRouter(store));
   app.route("/api/projects", createCanvasRouter(store));
   app.route("/", createDesignSystemsRouter(store, designSystemStore));
+  const unitOfWork: GenerationUnitOfWork =
+    "unitOfWork" in generationRepositories
+      ? (generationRepositories as { unitOfWork: GenerationUnitOfWork }).unitOfWork
+      : { transaction: (callback) => callback(generationRepositories) };
+
   app.route("/", createGenerationJobsRouter(generationStore));
   app.route("/", createScreensRouter(store, generationRepositories));
   app.route(
     "/",
-    createAuthoredScreenVersionsRouter(
-      store,
-      createGenerationResultPersister(generationRepositories.unitOfWork),
-    ),
+    createAuthoredScreenVersionsRouter(store, createGenerationResultPersister(unitOfWork)),
   );
   app.route(
     "/",
