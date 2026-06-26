@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { GenerationJob, ScreenVersion } from "@odc/shared";
 import { designSpecToReact, reactDownloadName } from "../../lib/designSpecToReact";
+import { buildViteProjectZip, viteProjectZipName } from "../../lib/viteProjectExport";
 
 type PreviewPanelProps = {
   job: GenerationJob | null;
@@ -79,6 +80,17 @@ export function PreviewPanel({ job, screenVersion }: PreviewPanelProps) {
               >
                 Export React
               </button>
+              <button
+                type="button"
+                className="preview-export-button"
+                onClick={() => {
+                  void buildViteProjectZip(screenVersion.designSpec).then((blob) =>
+                    downloadBlob(viteProjectZipName(screenVersion.designSpec.title), blob),
+                  );
+                }}
+              >
+                Export project
+              </button>
             </div>
           ) : null}
         </div>
@@ -125,7 +137,10 @@ export function htmlDownloadName(title: string): string {
 }
 
 function downloadTextFile(filename: string, content: string, mimeType: string): void {
-  const blob = new Blob([content], { type: mimeType });
+  downloadBlob(filename, new Blob([content], { type: mimeType }));
+}
+
+function downloadBlob(filename: string, blob: Blob): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
