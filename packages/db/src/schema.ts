@@ -217,6 +217,23 @@ export const screenVersions = pgTable(
   ],
 );
 
+export const shareLinks = pgTable(
+  "share_links",
+  {
+    /** The non-guessable public token; used directly in the public URL. */
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    screenVersionId: text("screen_version_id")
+      .notNull()
+      .references(() => screenVersions.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [index("share_links_screen_version_idx").on(table.screenVersionId)],
+);
+
 export const generationJobs = pgTable(
   "generation_jobs",
   {

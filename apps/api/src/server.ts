@@ -17,6 +17,8 @@ import { createInMemoryDesignSystemStore, type DesignSystemStore } from "./lib/d
 import { createPgDesignSystemStore } from "./lib/pg-design-system-store";
 import { createConfiguredGenerationQueue } from "./lib/generation-queue";
 import { createHttpEveGenerationDispatcher } from "./lib/eve-dispatch";
+import { createInMemoryShareLinkStore, type ShareLinkStore } from "./lib/share-link-store";
+import { createPgShareLinkStore } from "./lib/pg-share-link-store";
 import { createPgGenerationRepositories } from "./lib/pg-generation-repositories";
 import { createPgProjectStore } from "./lib/pg-project-store";
 import { createInMemoryProjectStore } from "./lib/project-store";
@@ -25,6 +27,7 @@ import { createArtifactsRouter } from "./routes/artifacts";
 import { createAuthoredScreenVersionsRouter } from "./routes/authored-screen-versions";
 import { createCanvasRouter } from "./routes/canvas";
 import { createDesignSystemsRouter } from "./routes/design-systems";
+import { createSharingRouter } from "./routes/sharing";
 import { createGenerationJobsRouter } from "./routes/generation-jobs";
 import { createProjectsRouter } from "./routes/projects";
 import { createScreensRouter } from "./routes/screens";
@@ -35,6 +38,7 @@ export type CreateAppOptions = {
   generationRepositories?: GenerationRepositories;
   artifactObjectStore?: ArtifactObjectStore | null;
   designSystemStore?: DesignSystemStore;
+  shareLinkStore?: ShareLinkStore;
 };
 
 export function createApp(options: CreateAppOptions = {}) {
@@ -60,6 +64,11 @@ export function createApp(options: CreateAppOptions = {}) {
     (config.databaseUrl
       ? createPgDesignSystemStore(config.databaseUrl)
       : createInMemoryDesignSystemStore());
+  const shareLinkStore =
+    options.shareLinkStore ??
+    (config.databaseUrl
+      ? createPgShareLinkStore(config.databaseUrl)
+      : createInMemoryShareLinkStore());
   const eveDispatcher =
     config.eveGeneration.enabled && config.eveGeneration.dispatchUrl
       ? createHttpEveGenerationDispatcher(config.eveGeneration.dispatchUrl)
@@ -91,6 +100,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route("/api/projects", createProjectsRouter(store));
   app.route("/api/projects", createCanvasRouter(store));
   app.route("/", createDesignSystemsRouter(store, designSystemStore));
+  app.route("/", createSharingRouter(store, generationRepositories, shareLinkStore));
   const unitOfWork: GenerationUnitOfWork =
     "unitOfWork" in generationRepositories
       ? (generationRepositories as { unitOfWork: GenerationUnitOfWork }).unitOfWork
