@@ -152,6 +152,18 @@ export type VariantArtifactInput = {
   } | null;
 };
 
+export type AuthoredScreenVersionInput = {
+  projectId: string;
+  designSpec: DesignSpec;
+  htmlCode: string;
+  reactCode: string | null;
+  sourcePrompt: string;
+  provider: string;
+  model: string;
+  baseScreenId?: string | null;
+  baseVersionId?: string | null;
+};
+
 export type CompletedVariantsInput = {
   jobId: string;
   projectId: string;
@@ -359,6 +371,61 @@ export function createGenerationResultPersister(unitOfWork: GenerationUnitOfWork
         });
 
         return { job, screen, screenVersions, artifacts };
+      });
+    },
+
+    async persistAuthoredScreenVersion(input: AuthoredScreenVersionInput): Promise<{
+      screen: Screen;
+      screenVersion: ScreenVersion;
+    }> {
+      return unitOfWork.transaction(async (repositories) => {
+        const screenVersionId = `ver_${randomUUID()}`;
+
+        let screen: Screen;
+        let versionNumber = 1;
+        let operation: ScreenVersion["operation"] = "generate";
+        let parentVersionId: string | null = null;
+
+        if (input.baseScreenId) {
+          const baseScreen = await repositories.screens.findById(input.baseScreenId);
+          if (!baseScreen) {
+            throw new Error(`Screen ${input.baseScreenId} not found`);
+          }
+          if (baseScreen.projectId !== input.projectId) {
+            throw new Error(`Screen ${input.baseScreenId} does not belong to project ${input.projectId}`);
+          }
+
+          const existingVersions = await repositories.screenVersions.listByScreen(baseScreen.id);
+          versionNumber =
+            existingVersions.reduce((max, version) => Math.max(max, version.versionNumber), 0) + 1;
+          operation = "edit";
+          parentVersionId = input.baseVersionId ?? baseScreen.currentVersionId;
+          screen = await repositories.screens.setCurrentVersion(baseScreen.id, screenVersionId);
+        } else {
+          screen = await repositories.screens.create({
+            projectId: input.projectId,
+            title: input.designSpec.title,
+            deviceType: input.designSpec.deviceType,
+            currentVersionId: screenVersionId,
+          });
+        }
+
+        const screenVersion = await repositories.screenVersions.create({
+          id: screenVersionId,
+          screenId: screen.id,
+          versionNumber,
+          sourcePrompt: input.sourcePrompt,
+          operation,
+          designSpec: input.designSpec,
+          htmlCode: input.htmlCode,
+          reactCode: input.reactCode,
+          screenshotArtifactId: null,
+          parentVersionId,
+          provider: input.provider,
+          model: input.model,
+        });
+
+        return { screen, screenVersion };
       });
     },
   };

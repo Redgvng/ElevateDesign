@@ -1,5 +1,6 @@
 import type {
   CreateGenerationJobInput,
+  DesignSpec,
   DesignSystem,
   GenerationJob,
   Project,
@@ -7,6 +8,13 @@ import type {
   ScreenVersion,
   ScreenVersionSummary,
 } from "@odc/shared";
+
+export type AuthoredScreenVersionInput = {
+  designSpec: DesignSpec;
+  sourcePrompt: string;
+  baseScreenId?: string;
+  baseVersionId?: string;
+};
 
 export type FetchLike = (
   input: string,
@@ -105,6 +113,17 @@ export function createOdcApiClient({ baseUrl, fetch = globalThis.fetch as FetchL
         `/api/screen-versions/${screenVersionId}`,
       );
       return screenVersion;
+    },
+
+    async createScreenVersion(
+      projectId: string,
+      input: AuthoredScreenVersionInput,
+      idempotencyKey?: string,
+    ): Promise<{ screen: Screen; screenVersion: ScreenVersion }> {
+      return request<{ screen: Screen; screenVersion: ScreenVersion }>(
+        `/api/projects/${projectId}/screen-versions`,
+        { method: "POST", body: input, idempotencyKey },
+      );
     },
   };
 }

@@ -1,6 +1,10 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import type { ArtifactObjectStore, GenerationRepositories } from "@odc/db";
+import {
+  createGenerationResultPersister,
+  type ArtifactObjectStore,
+  type GenerationRepositories,
+} from "@odc/db";
 import { loadConfig, type AppConfig } from "./config";
 import {
   createInMemoryGenerationJobRepository,
@@ -16,6 +20,7 @@ import { createPgProjectStore } from "./lib/pg-project-store";
 import { createInMemoryProjectStore } from "./lib/project-store";
 import { checkReadiness } from "./lib/readiness";
 import { createArtifactsRouter } from "./routes/artifacts";
+import { createAuthoredScreenVersionsRouter } from "./routes/authored-screen-versions";
 import { createCanvasRouter } from "./routes/canvas";
 import { createDesignSystemsRouter } from "./routes/design-systems";
 import { createGenerationJobsRouter } from "./routes/generation-jobs";
@@ -81,6 +86,13 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route("/", createDesignSystemsRouter(store, designSystemStore));
   app.route("/", createGenerationJobsRouter(generationStore));
   app.route("/", createScreensRouter(store, generationRepositories));
+  app.route(
+    "/",
+    createAuthoredScreenVersionsRouter(
+      store,
+      createGenerationResultPersister(generationRepositories.unitOfWork),
+    ),
+  );
   app.route(
     "/",
     createArtifactsRouter(store, generationRepositories.artifacts, artifactObjectStore),

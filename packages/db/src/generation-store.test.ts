@@ -23,6 +23,71 @@ describe("createGenerationResultPersister", () => {
     });
   });
 
+  it("persists an agent-authored spec as a new screen version (no job)", async () => {
+    const state = createRepositoryState();
+    const persister = createGenerationResultPersister(state.unitOfWork);
+
+    const { screen, screenVersion } = await persister.persistAuthoredScreenVersion({
+      projectId: "proj_1",
+      designSpec: completedInput.designSpec,
+      htmlCode: "<html></html>",
+      reactCode: null,
+      sourcePrompt: "Eve authored this",
+      provider: "eve",
+      model: "eve-agent",
+    });
+
+    expect(state.createCounts.screens).toBe(1);
+    expect(screen.currentVersionId).toBe(screenVersion.id);
+    expect(screenVersion.versionNumber).toBe(1);
+    expect(screenVersion.operation).toBe("generate");
+  });
+
+  it("appends an agent-authored edit version to an existing screen", async () => {
+    const seedScreen: Screen = {
+      id: "screen_a",
+      projectId: "proj_1",
+      title: "Dashboard",
+      deviceType: "desktop",
+      currentVersionId: "ver_a",
+      createdAt: "2026-06-18T09:00:00.000Z",
+      updatedAt: "2026-06-18T09:00:00.000Z",
+    };
+    const seedVersion: ScreenVersion = {
+      id: "ver_a",
+      screenId: "screen_a",
+      versionNumber: 1,
+      sourcePrompt: "base",
+      operation: "generate",
+      designSpec: completedInput.designSpec,
+      htmlCode: "<html></html>",
+      reactCode: null,
+      screenshotArtifactId: null,
+      parentVersionId: null,
+      createdAt: "2026-06-18T09:00:00.000Z",
+    };
+    const state = createRepositoryState({ seed: { screen: seedScreen, version: seedVersion } });
+    const persister = createGenerationResultPersister(state.unitOfWork);
+
+    const { screen, screenVersion } = await persister.persistAuthoredScreenVersion({
+      projectId: "proj_1",
+      designSpec: completedInput.designSpec,
+      htmlCode: "<html></html>",
+      reactCode: null,
+      sourcePrompt: "Eve edit",
+      provider: "eve",
+      model: "eve-agent",
+      baseScreenId: "screen_a",
+    });
+
+    expect(state.createCounts.screens).toBe(0);
+    expect(screen.id).toBe("screen_a");
+    expect(screen.currentVersionId).toBe(screenVersion.id);
+    expect(screenVersion.versionNumber).toBe(2);
+    expect(screenVersion.operation).toBe("edit");
+    expect(screenVersion.parentVersionId).toBe("ver_a");
+  });
+
   it("appends a new version to the existing screen for an edit job", async () => {
     const seedScreen: Screen = {
       id: "screen_seed",
