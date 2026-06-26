@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DesignSpec } from "@odc/shared";
-import type { OdcApiClient } from "../lib/odc-api-client";
-import { createScreenVersion } from "./create_screen_version";
+import type { OdcApiClient } from "./odc-api-client";
+import { createScreenVersion } from "./create-screen-version";
 
 const validSpec: DesignSpec = {
   schemaVersion: "1.0",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DesignSpec } from "@odc/shared";
-import { validateDesignSpec } from "./validate_design_spec";
+import { validateDesignSpec } from "./validate-design-spec";
 
 const validSpec: DesignSpec = {
   schemaVersion: "1.0",

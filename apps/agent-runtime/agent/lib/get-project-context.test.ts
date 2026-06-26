@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { OdcApiClient } from "../lib/odc-api-client";
-import { getProjectContext } from "./get_project_context";
+import type { OdcApiClient } from "./odc-api-client";
+import { getProjectContext } from "./get-project-context";
 
 const fakeClient = {
   async getProjectContext() {

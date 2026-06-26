@@ -1,4 +1,4 @@
-import type { OdcApiClient } from "../lib/odc-api-client";
+import type { OdcApiClient } from "./odc-api-client";
 
 export type ProjectContextView = {
   projectId: string;

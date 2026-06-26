@@ -1,6 +1,6 @@
-import { idempotencyKey, type IdempotencyContext } from "../lib/idempotency";
-import type { OdcApiClient } from "../lib/odc-api-client";
-import { validateDesignSpec } from "./validate_design_spec";
+import { idempotencyKey, type IdempotencyContext } from "./idempotency";
+import type { OdcApiClient } from "./odc-api-client";
+import { validateDesignSpec } from "./validate-design-spec";
 
 export type CreateScreenVersionInput = {
   projectId: string;
